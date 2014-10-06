@@ -71,6 +71,7 @@ private slots:
     void on_PeerIPText_returnPressed();
     void on_SavePublicCB_toggled(bool checked);
 	void on_GenerateButton_clicked();
+	void on_UseRSACB_toggled(bool checked);
 };
 
 #endif // MAINWINDOW_H

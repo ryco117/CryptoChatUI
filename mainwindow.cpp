@@ -37,6 +37,7 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
     MyPTP.SentStuff = 0;
     MyPTP.RNG = rng;
 	MyPTP.HasPub = false;
+	MyPTP.UseRSA = false;
 
     MyPTP.SymKey = rng->get_z_bits(256);
     Keys[0] = 65537;
@@ -171,6 +172,10 @@ void MainWindow::on_SavePublicCB_toggled(bool checked)
     ui->PeerPublicLocLine->setEnabled(checked);
     if(!checked)
         ui->PeerPublicLocLine->clear();
+}
+void MainWindow::on_UseRSACB_toggled(bool checked)
+{
+	MyPTP.UseRSA = checked;
 }
 void MainWindow::on_CreateKeysButton_clicked()
 {

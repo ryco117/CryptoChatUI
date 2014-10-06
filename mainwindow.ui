@@ -541,6 +541,20 @@ you. Other than that, this </string>
       <string>Public Name</string>
      </property>
     </widget>
+    <widget class="QCheckBox" name="UseRSACB">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>80</y>
+       <width>481</width>
+       <height>41</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Use RSA instead of ECC for asymmetric encryption (Please understand the
+ramifications before enabling)</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QLabel" name="StatusLabel">
     <property name="geometry">
@@ -563,13 +577,13 @@ you. Other than that, this </string>
      <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
     </property>
    </widget>
+   <zorder>ConnectSettingsWidget</zorder>
    <zorder>LoadMyKeysWidget</zorder>
-   <zorder>OptionsWidget</zorder>
    <zorder>SendText</zorder>
    <zorder>SendButton</zorder>
    <zorder>StatusLabel</zorder>
    <zorder>ReceiveText</zorder>
-   <zorder>ConnectSettingsWidget</zorder>
+   <zorder>OptionsWidget</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
