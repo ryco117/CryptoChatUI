@@ -18,14 +18,16 @@ SOURCES += main.cpp\
     PeerIO.cpp \
     PeerToPeer.cpp \
     RSA.cpp \
-    CloseSocket.cpp
+    CloseSocket.cpp \
+    curve25519-donna.c
 
 HEADERS  += mainwindow.h \
     AES.h \
     PeerToPeer.h \
     RSA.h \
     KeyManager.h \
-    base64.h
+    base64.h \
+    ecdh.h
 
 FORMS    += mainwindow.ui
 

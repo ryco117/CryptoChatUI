@@ -36,6 +36,7 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
     MyPTP.Sending = 0;
     MyPTP.SentStuff = 0;
     MyPTP.RNG = rng;
+	MyPTP.HasPub = false;
 
     MyPTP.SymKey = rng->get_z_bits(256);
     Keys[0] = 65537;
@@ -72,47 +73,8 @@ void MainWindow::ConnectSetup()
     ui->ReceiveText->setHidden(!shown);
     ui->SendText->setHidden(!shown);
     ui->SendButton->setHidden(!shown);
-
-    if(!shown && Mod != 0 && Keys[1] != 0 && Keys[0] != 0)
-    {
-        msgBox = new QMessageBox;
-        msgBox->setText(tr("You have already manually assigned a public\nand private key. Do you want to use these?"));
-        msgBox->setIcon(QMessageBox::Question);
-        msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-        if(msgBox->exec() == QMessageBox::Yes)
-        {
-            ui->PrimePText->setEnabled(false);
-            ui->PrimePRand->setEnabled(false);
-
-            ui->PrimeQText->setEnabled(false);
-            ui->PrimeQRand->setEnabled(false);
-
-            ui->EncKeyText->setEnabled(false);
-            ui->EncKeyRand->setEnabled(false);
-            MyPTP.MyMod = Mod;
-            MyPTP.MyE = Keys[0];
-            MyPTP.MyD = Keys[1];
-        }
-        else
-        {
-            Mod = 0;
-            Keys[0] = 65537;
-            Keys[1] = 0;
-            ui->PublicKeyLocLabel->setText(tr(""));
-            ui->PrivateKeyLocLabel->setText(tr(""));
-
-            ui->PrimePText->setEnabled(true);
-            ui->PrimePRand->setEnabled(true);
-
-            ui->PrimeQText->setEnabled(true);
-            ui->PrimeQRand->setEnabled(true);
-
-            ui->EncKeyText->setEnabled(true);
-            ui->EncKeyText->setText(tr("65537"));
-            ui->EncKeyRand->setEnabled(true);
-        }
-        delete msgBox;
-    }
+	if(IsIP(ui->PeerIPText->text().toStdString()) && ((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0)))
+        ui->ConnectButton->setEnabled(true);
 }
 
 void MainWindow::Disconnect()
@@ -214,30 +176,26 @@ void MainWindow::on_CreateKeysButton_clicked()
 {
     if(ui->MyPrivateLocLine->text().size() != 0 && ui->MyPublicLocLine->text().size() != 0)
     {
+		if((MyPTP.UseRSA && MyPTP.MyMod == 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] == 0))
+		{
+			msgBox->setText(tr("Since no public keys are in memory,\nwill generate new ones."));
+	        msgBox->setIcon(QMessageBox::Information);
+	        msgBox->setStandardButtons(QMessageBox::Ok);
+	        msgBox->exec();
+	        delete msgBox;
+			if(MyPTP.UseRSA)
+			{
+				NewRSA.KeyGenerator(Keys, Mod, *rng, true, false);
+				MyPTP.MyMod = Mod;
+				MyPTP.MyE = Keys[0];
+				MyPTP.MyD = Keys[1];
+			}
+			else
+				ECC_Curve25519_Create(MyPTP.CurveP, MyPTP.CurveK, *rng);
+		}
+
         string Passwd = ui->MyPrivatePassLine->text().toStdString();
 		ui->MyPrivateLocLine->text().toStdWString();
-
-        bool AnsNo = false;
-        if(Mod != 0 || Keys[1] != 0)
-        {
-            msgBox = new QMessageBox;
-            msgBox->setText(tr("You have already assigned a public\nand private key values. Do you want to\nuse these instead of randomly generated one?"));
-            msgBox->setIcon(QMessageBox::Question);
-            msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-            if(msgBox->exec() == QMessageBox::No)
-                AnsNo = true;
-        }
-
-        if(!AnsNo)
-        {
-            NewRSA.BigPrime(PrimeP, *rng, 2048, 24);
-            NewRSA.BigPrime(PrimeQ, *rng, 2048, 24);
-            NewRSA.BigPrime(Keys[0], *rng, 2048, 24);
-
-            Mod = PrimeP * PrimeQ;
-            mpz_class EulersTot = (PrimeP - 1) * (PrimeQ - 1);
-            mpz_invert(Keys[1].get_mpz_t(), Keys[0].get_mpz_t(), EulersTot.get_mpz_t());
-        }
 
 		char SaltStr[16] = {0};
 
@@ -245,9 +203,18 @@ void MainWindow::on_CreateKeysButton_clicked()
 		mpz_export(SaltStr, 0, 1, 1, 0, 0, Salt.get_mpz_t());
 		mpz_class TempIV = rng->get_z_bits(128);
 
-        MakePrivateKey(ui->MyPrivateLocLine->text().toStdString(), Keys[1], &Passwd, SaltStr, TempIV);
-		ui->MyPrivatePassLine->clear();
-        MakePublicKey(ui->MyPublicLocLine->text().toStdString(), Mod, Keys[0]);
+		if(MyPTP.UseRSA)
+		{
+			MakeRSAPrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.MyD, &Passwd, SaltStr, TempIV);
+			ui->MyPrivatePassLine->clear();
+			MakeRSAPublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.MyMod, MyPTP.MyE);
+		}
+		else
+		{
+			MakeCurvePrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.CurveK, &Passwd, SaltStr, TempIV);
+			ui->MyPrivatePassLine->clear();
+			MakeCurvePublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.CurveP);
+		}
 	}
     else
     {
@@ -280,26 +247,52 @@ void MainWindow::LoadMyKeys()
 void MainWindow::on_OpenPublicButton_clicked()
 {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Files (*.*)"));
-    //QByteArray ba = fileName.toLocal8Bit();
-    if(fileName.size() == 0 || !LoadPublicKey(fileName.toStdString(), Mod, Keys[0]))
-    {
-        Mod = 0;
-        Keys[0] = 0;
-    }
-    else
-        ui->PublicKeyLocLabel->setText(fileName);
+
+	if(MyPTP.UseRSA)
+	{
+		if(fileName.size() == 0 || !LoadRSAPublicKey(fileName.toStdString(), Mod, Keys[0]))
+		{
+			Mod = 0;
+			Keys[0] = 0;
+		}
+		else
+		{
+			ui->PublicKeyLocLabel->setText(fileName);
+			MyPTP.MyMod = Mod;
+			MyPTP.MyE = Keys[0];
+		}
+	}
+	else
+	{
+		if(fileName.size() == 0 || !LoadCurvePublicKey(fileName.toStdString(), MyPTP.CurveP))
+		{
+			memset((char*)MyPTP.CurveP, 0, 32);
+		}
+		else
+			ui->PublicKeyLocLabel->setText(fileName);
+	}
 }
 void MainWindow::on_OpenPrivateButton_clicked()
 {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Files (*.*)"));
-	//QByteArray baFile = fileName.toLocal8Bit();
-    //QByteArray baPass = ui->PasswordLine->text().toLocal8Bit();
     string Pass = ui->PasswordLine->text().toStdString();
-    if(fileName.size() == 0 || !LoadPrivateKey(fileName.toStdString(), Keys[1], &Pass))
-        Keys[1] = 0;
-    else
-        ui->PrivateKeyLocLabel->setText(fileName);
-
+	if(MyPTP.UseRSA)
+	{
+		if(fileName.size() == 0 || !LoadRSAPrivateKey(fileName.toStdString(), Keys[1], &Pass))
+			Keys[1] = 0;
+		else
+		{
+			ui->PrivateKeyLocLabel->setText(fileName);
+			MyPTP.MyD = Keys[1];
+		}
+	}
+	else
+	{
+		if(fileName.size() == 0 || !LoadCurvePrivateKey(fileName.toStdString(), MyPTP.CurveK, &Pass))
+			memset((char*)MyPTP.CurveK, 0, 32);
+		else
+			ui->PrivateKeyLocLabel->setText(fileName);
+	}
 	ui->MyPrivatePassLine->clear();
 }
 void MainWindow::on_OKButton_clicked()
@@ -314,12 +307,21 @@ void MainWindow::on_OKButton_clicked()
 void MainWindow::LoadPeerPublicKey()
 {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Files (*.*)"));
-    //QByteArray ba = fileName.toLocal8Bit();
-    if(fileName.size() == 0 || !LoadPublicKey(fileName.toStdString(), MyPTP.ClientMod, MyPTP.ClientE))
-    {
-        MyPTP.ClientMod = 0;
-        MyPTP.ClientE = 0;
-    }
+    if(MyPTP.UseRSA)
+	{
+		if(fileName.size() == 0 || !LoadRSAPublicKey(fileName.toStdString(), MyPTP.ClientMod, MyPTP.ClientE))
+		{
+		    MyPTP.ClientMod = 0;
+		    MyPTP.ClientE = 0;
+		}
+	}
+	else
+	{
+		if(fileName.size() == 0 || !LoadCurvePublicKey(fileName.toStdString(), MyPTP.CurvePPeer))
+		{
+		    memset((char*)MyPTP.CurvePPeer, 0, 32);
+		}
+	}
 }
 
 void MainWindow::Help()
@@ -361,15 +363,6 @@ void MainWindow::on_ConnectButton_clicked()
 {
     if(!MyPTP.Serv)
     {
-        if(MyPTP.MyMod == 0)
-        {
-            MyPTP.MyMod = PrimeP * PrimeQ;
-            MyPTP.MyE = Keys[0];
-            mpz_class EulersTot = (PrimeP - 1) * (PrimeQ - 1);
-            mpz_invert(Keys[1].get_mpz_t(), Keys[0].get_mpz_t(), EulersTot.get_mpz_t());
-            MyPTP.MyD = Keys[1];
-        }
-
         int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
         if(error)
         {
@@ -424,9 +417,13 @@ void MainWindow::Update()
             MyPTP.GConnected = false;
             MyPTP.ConnectedClnt = false;
             MyPTP.ConnectedSrvr = false;
+			MyPTP.HasPub = false;
+			memset((char*)MyPTP.CurveP, 0, 32);
+			memset((char*)MyPTP.CurveK, 0, 32);
+			memset((char*)MyPTP.CurvePPeer, 0, 32);
 
             GMPSeed(rng);
-            MyPTP.SymKey = rng->get_z_bits(128);
+            MyPTP.SymKey = rng->get_z_bits(256);
             Keys[0] = 65537;
             Keys[1] = 0;
             Mod = 0;
@@ -436,6 +433,7 @@ void MainWindow::Update()
             ui->SendText->setDisabled(true);
             ui->ReceiveText->setDisabled(true);
 			ui->StatusLabel->setText(QString("Not Connected"));
+			ui->ConnectButton->setDisabled(true);
         }
 
         if(error < 0)
@@ -458,9 +456,14 @@ void MainWindow::Update()
             MyPTP.GConnected = false;
             MyPTP.ConnectedClnt = false;
             MyPTP.ConnectedSrvr = false;
+			MyPTP.HasPub = false;
+			memset((char*)MyPTP.CurveP, 0, 32);
+			memset((char*)MyPTP.CurveK, 0, 32);
+			memset((char*)MyPTP.CurvePPeer, 0, 32);
+
 
             GMPSeed(rng);
-            MyPTP.SymKey = rng->get_z_bits(128);
+            MyPTP.SymKey = rng->get_z_bits(256);
             Keys[0] = 65537;
             Keys[1] = 0;
             Mod = 0;
@@ -469,6 +472,7 @@ void MainWindow::Update()
             ui->SendButton->setDisabled(true);
             ui->SendText->setDisabled(true);
             ui->ReceiveText->setDisabled(true);
+			ui->ConnectButton->setDisabled(true);
 
             msgBox = new QMessageBox;
             msgBox->setText(QString("Update loop failed, error code ") + QString::number(error));
@@ -499,98 +503,39 @@ void MainWindow::GMPSeed(gmp_randclass* rng)
         fprintf(stderr, "Cannot open /dev/urandom!\n");
         return;
     }
-    fread(&seed, sizeof(seed), 1, random);
-    srand(seed); 		// seed the default random number generator
-    rng->seed(seed);	// seed the GMP random number generator
+	for(int i = 0; i < 20; i++)
+	{
+		fread(&seed, sizeof(seed), 1, random);
+		srand(seed);							//seed the default random number generator
+		rng->seed(seed);						//seed the GMP random number generator
+	}
+	fclose(random);
 }
 
-void MainWindow::on_PrimeQText_textEdited(const QString &arg1)
+void MainWindow::on_GenerateButton_clicked()
 {
-    bool failed = false;
-    try
-    {
-        //QByteArray ba = arg1.toLocal8Bit();
-        PrimeQ = mpz_class(arg1.toStdString());
-    }
-    catch(exception e)
-    {
-        ui->ConnectButton->setDisabled(true);
-        failed = true;
-    }
-    //QByteArray ba = ui->PeerIPText->text().toLocal8Bit();
-    if(!failed && Keys[0] != 0 && PrimeP != 0 && PrimeQ != 0 && IsIP(ui->PeerIPText->text().toStdString()))
-        ui->ConnectButton->setEnabled(true);
-}
-void MainWindow::on_PrimeQRand_clicked()
-{
-    NewRSA.BigPrime(PrimeQ, *rng, 2048, 24);
-    ui->PrimeQText->setText(QString(PrimeQ.get_str().c_str()));
-
-    //QByteArray ba = ui->PeerIPText->text().toLocal8Bit();
-    if(Keys[0] != 0 && PrimeP != 0 && IsIP(ui->PeerIPText->text().toStdString()))
-        ui->ConnectButton->setEnabled(true);
-}
-
-void MainWindow::on_PrimePText_textEdited(const QString &arg1)
-{
-    bool failed = false;
-    try
-    {
-        //QByteArray ba = arg1.toLocal8Bit();
-        PrimeP = mpz_class(arg1.toStdString());
-    }
-    catch(exception e)
-    {
-        ui->ConnectButton->setDisabled(true);
-        failed = true;
-    }
-    //QByteArray ba = ui->PeerIPText->text().toLocal8Bit();
-    if(!failed && Keys[0] != 0 && PrimeP != 0 && PrimeQ != 0 && IsIP(ui->PeerIPText->text().toStdString()))
-        ui->ConnectButton->setEnabled(true);
-}
-void MainWindow::on_PrimePRand_clicked()
-{
-    NewRSA.BigPrime(PrimeP, *rng, 2048, 24);
-    ui->PrimePText->setText(QString(PrimeP.get_str().c_str()));
-
-    //QByteArray ba = ui->PeerIPText->text().toLocal8Bit();
-    if(Keys[0] != 0 && PrimeQ != 0 && IsIP(ui->PeerIPText->text().toStdString()))
-        ui->ConnectButton->setEnabled(true);
-}
-
-void MainWindow::on_EncKeyText_textEdited(const QString &arg1)
-{
-    bool failed = false;
-    try
-    {
-        //QByteArray ba = arg1.toLocal8Bit();
-        Keys[0] = mpz_class(arg1.toStdString());
-    }
-    catch(exception e)
-    {
-        ui->ConnectButton->setDisabled(true);
-        failed = true;
-    }
-    //QByteArray ba = ui->PeerIPText->text().toLocal8Bit();
-    if(!failed && Keys[0] != 0 && PrimeP != 0 && PrimeQ != 0 && IsIP(ui->PeerIPText->text().toStdString()))
-        ui->ConnectButton->setEnabled(true);
-}
-void MainWindow::on_EncKeyRand_clicked()
-{
-    NewRSA.BigPrime(Keys[0], *rng, 2048, 24);
-    ui->EncKeyText->setText(QString(Keys[0].get_str().c_str()));
-
-	//QByteArray ba = ui->PeerIPText->text().toLocal8Bit();
-    if(PrimeP != 0 && PrimeQ != 0 && IsIP(ui->PeerIPText->text().toStdString()))
+	if(MyPTP.UseRSA)
+	{
+		NewRSA.KeyGenerator(Keys, Mod, *rng, true, false);
+		MyPTP.MyMod = Mod;
+		MyPTP.MyE = Keys[0];
+		MyPTP.MyD = Keys[1];
+	}
+	else
+	{
+		ECC_Curve25519_Create(MyPTP.CurveP, MyPTP.CurveK, *rng);
+	}
+	ui->StatusLabel->setText(QString("Private/Public keys created!"));
+	if(IsIP(ui->PeerIPText->text().toStdString()))
         ui->ConnectButton->setEnabled(true);
 }
 
 void MainWindow::on_PeerIPText_textEdited(const QString &arg1)
 {
-    //QByteArray ba = arg1.toLocal8Bit();
+
     if(!IsIP(arg1.toStdString()))
         ui->ConnectButton->setDisabled(true);
-    else if(Keys[0] != 0 && ((PrimeP != 0 && PrimeQ != 0) || Mod != 0))
+    else if((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0))	//For a proper Curve25519, k[31] can't be zero (bit 254 always set) and so this checks if we generated the curve
     {
         MyPTP.ClntIP = arg1.toStdString();
         ui->ConnectButton->setEnabled(true);
@@ -602,15 +547,6 @@ void MainWindow::on_PeerIPText_returnPressed()
     {
         if(!MyPTP.Serv)
         {
-            if(MyPTP.MyMod == 0)
-            {
-                MyPTP.MyMod = PrimeP * PrimeQ;
-                MyPTP.MyE = Keys[0];
-                mpz_class EulersTot = (PrimeP - 1) * (PrimeQ - 1);
-                mpz_invert(Keys[1].get_mpz_t(), Keys[0].get_mpz_t(), EulersTot.get_mpz_t());
-                MyPTP.MyD = Keys[1];
-            }
-
             int error = MyPTP.StartServer(1, true, string(""));
             if(error)
             {

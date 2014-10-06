@@ -93,9 +93,9 @@ int PeerToPeer::Update()
                 ConnectedSrvr = true;		//Passed All Tests, We Can Safely Say We Connected
 
                 FD_SET(newSocket, &master); // add the newSocket FD to master set
-                for(int j = 1; j < MaxClients + 1; j++)	//assign an unassigned MySocks to newSocket
+                for(unsigned int j = 1; j < MaxClients + 1; j++)	//assign an unassigned MySocks to newSocket
                 {
-                    if(MySocks[j] == -1) 	//Not in use
+                    if(MySocks[j] == -1)			//Not in use
                     {
                         MySocks[j] = newSocket;
                         if(newSocket > fdmax)		//if the new file descriptor is greater than fdmax..
@@ -103,7 +103,7 @@ int PeerToPeer::Update()
                         break;
                     }
                 }
-                if(ClientMod == 0)		//Check if we haven't already assigned the client's public key through an arg.
+                if(UseRSA && !HasPub)		//Check if we haven't already assigned the client's public key through an arg.
                 {
 					char* TempVA = new char[MAX_RSA_SIZE];
 					string TempVS;
@@ -134,10 +134,26 @@ int PeerToPeer::Update()
 						return -1;
 					}
                     if(!SavePub.empty())		//If we set the string for where to save their public key...
-                        MakePublicKey(SavePub, ClientMod, ClientE);		//SAVE THEIR PUBLIC KEY!
+                        MakeRSAPublicKey(SavePub, ClientMod, ClientE);		//SAVE THEIR PUBLIC KEY!
 
 					delete[] TempVA;
                 }
+				else if(!UseRSA)
+				{
+					if(!HasPub)
+					{
+						nbytes = recv(newSocket, CurvePPeer, 32, 0);
+						if(!SavePub.empty())
+	                        MakeCurvePublicKey(SavePub, CurvePPeer);
+					}
+					unsigned char SaltStr[16] = {'\x43','\x65','\x12','\x94','\x83','\x05','\x73','\x37','\x65','\x93','\x85','\x64','\x51','\x65','\x64','\x94'};
+					unsigned char Hash[32] = {0};
+
+					curve25519_donna(SharedKey, CurveK, CurvePPeer);
+					libscrypt_scrypt(SharedKey, 32, SaltStr, 16, 16384, 14, 2, Hash, 32); //Use agreed upon salt
+					mpz_import(SymKey.get_mpz_t(), 32, 1, 1, 0, 0, Hash);
+				}
+				HasPub = true;
             }
             else		//Data is on a new socket
             {
@@ -163,7 +179,7 @@ int PeerToPeer::Update()
                     FD_CLR(MySocks[i], &master); // remove from master set
                     ContinueLoop = false;
                 }
-                else if(SentStuff == 2)		//if SentStuff == 2, then we still need the symmetric key
+                else if(SentStuff == 2 && UseRSA) //if SentStuff == 2, then we still need the symmetric key (should only get here if RSA)
                 {
 					string ClntKey = buf;
 					mpz_class TempKey;
@@ -175,12 +191,12 @@ int PeerToPeer::Update()
 					{
 						ui->StatusLabel->setText(QString("The received symmetric key is bad"));
 					}
-					SymKey += MyRSA.BigDecrypt(MyMod, MyD, TempKey);		//They sent their sym key with our public key. Decrypt it!
+					SymKey += MyRSA.BigDecrypt(MyMod, MyD, TempKey);							//They sent their sym key with our public key. Decrypt it!
 
 					mpz_class LargestAllowed = 0;
 					mpz_class One = 1;
-					mpz_mul_2exp(LargestAllowed.get_mpz_t(), One.get_mpz_t(), 128);		//Largest allowed sym key is equal to (1 * 2^128)
-					SymKey %= LargestAllowed;		//Modulus by largest 128 bit value ensures within range after adding keys!
+					mpz_mul_2exp(LargestAllowed.get_mpz_t(), One.get_mpz_t(), 256);				//Largest allowed sym key is equal to (1 * 2^256) - 1
+					mpz_mod(SymKey.get_mpz_t(), SymKey.get_mpz_t(), LargestAllowed.get_mpz_t());//Modulus by largest 256 bit value ensures within range after adding keys!
 					SentStuff = 3;
                 }
 				else
@@ -205,13 +221,29 @@ int PeerToPeer::Update()
 						{
 							ui->StatusLabel->setText(QString("The received IV is bad"));
 						}
-						Msg = Msg.substr(IV64_LEN+1);
+
+						try
+						{
+							Msg = Msg.substr(IV64_LEN+1);
+						}
+						catch(int e)
+						{
+							cout << "Bad message\n";
+							ui->StatusLabel->setText(QString("Bad message received"));
+						}
 						DropLine(Msg);
                     }
                     else if(Msg[0] == 1)
                     {
                         Sending = -1;		//Receive file mode
-						Import64(Msg.substr(1, IV64_LEN), PeerIV);
+						try
+						{
+							Import64(Msg.substr(1, IV64_LEN), PeerIV);
+						}
+						catch(int e)
+						{
+							ui->StatusLabel->setText(QString("Bad IV\n"));
+						}
 						string PlainText;
 						try
 						{
@@ -280,21 +312,27 @@ int PeerToPeer::Update()
     }//End For Loop for sockets
     if(Sending == 3)
         SendFilePt2();
-    if(!ConnectedClnt)		//Not conected yet?!?
+    if(!ConnectedClnt)					//Not conected yet?!?
     {
-		TryConnect(SendPub);		//Lets try to change that
+		TryConnect(SendPub);			//Lets try to change that
     }
-    if(SentStuff == 1 && ClientMod != 0 && ClientE != 0)		//We have established a connection and we have their keys!
+    if(SentStuff == 1 && HasPub)		//We have established a connection and we have their keys!
     {
-		string MyValues = Export64(MyRSA.BigEncrypt(ClientMod, ClientE, SymKey));	//Encrypt The Symmetric Key With Their Public Key, base 64
+		if(UseRSA)
+		{
+			string MyValues = Export64(MyRSA.BigEncrypt(ClientMod, ClientE, SymKey));	//Encrypt The Symmetric Key With Their Public Key, base 64
 
-        //Send The Encrypted Symmetric Key
-        if(send(Client, MyValues.c_str(), MyValues.length(), 0) < 0)
-        {
-            perror("Connect failure");
-            return -5;
-        }
-        SentStuff = 2;			//We have given them our symmetric key
+			//Send The Encrypted Symmetric Key
+			if(send(Client, MyValues.c_str(), MyValues.length(), 0) < 0)
+			{
+				perror("Connect failure");
+				return -5;
+			}
+			SentStuff = 2;			//We have given them our symmetric key
+		}
+		else
+			SentStuff = 3;
+
     }
     return 0;
 }
@@ -305,20 +343,31 @@ void PeerToPeer::TryConnect(bool SendPublic)
 	{
         if(SendPublic)
 		{
-			string TempValues = "";
-			string MyValues = "";
-
-			TempValues = Export64(MyMod);		//Base64 will save digits
-			MyValues = TempValues + "|";		//Pipe char to seperate keys
-
-			TempValues = Export64(MyE);
-			MyValues += TempValues;				//MyValues is equal to the string for the modulus + string for exp concatenated
-
-			//Send My Public Key And My Modulus Because We Started The Connection
-			if(send(Client, MyValues.c_str(), MyValues.length(), 0) < 0)
+			if(UseRSA)
 			{
-				perror("Connect failure");
-				return;
+				string TempValues = "";
+				string MyValues = "";
+
+				TempValues = Export64(MyMod);		//Base64 will save digits
+				MyValues = TempValues + "|";		//Pipe char to seperate keys
+
+				TempValues = Export64(MyE);
+				MyValues += TempValues;				//MyValues is equal to the string for the modulus + string for exp concatenated
+
+				//Send My Public Key And My Modulus Because We Started The Connection
+				if(send(Client, MyValues.c_str(), MyValues.length(), 0) < 0)
+				{
+					perror("Connect failure");
+					return;
+				}
+			}
+			else
+			{
+				if(send(Client, CurveP, 32, 0) < 0)
+				{
+					perror("Connect failure");
+					return;
+				}
 			}
 		}
 		SentStuff = 1;			//We have sent our keys

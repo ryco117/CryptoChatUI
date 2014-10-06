@@ -13,6 +13,8 @@
 #include <string>
 #include <ifaddrs.h>
 
+#include "curve25519-donna.c"
+#include "ecdh.h"
 #include "PeerToPeer.cpp"
 #include "KeyManager.h"
 #include "RSA.cpp"
@@ -37,8 +39,6 @@ public:
     AES Cipher;
 
     mpz_class SymmetricKey;
-    mpz_class PrimeP;
-    mpz_class PrimeQ;
     mpz_class Mod;
     mpz_class Keys[2];
     ~MainWindow();
@@ -61,13 +61,7 @@ private slots:
     void on_PortLine_textEdited(const QString &arg1);
     void About();
     void Update();
-    void on_PrimeQRand_clicked();
-    void on_PrimePRand_clicked();
-    void on_EncKeyRand_clicked();
     void on_PeerIPText_textEdited(const QString &arg1);
-    void on_EncKeyText_textEdited(const QString &arg1);
-    void on_PrimePText_textEdited(const QString &arg1);
-    void on_PrimeQText_textEdited(const QString &arg1);
     void on_OpenPublicButton_clicked();
     void on_OpenPrivateButton_clicked();
     void on_OKButton_clicked();
@@ -76,6 +70,7 @@ private slots:
     void on_SendText_returnPressed();
     void on_PeerIPText_returnPressed();
     void on_SavePublicCB_toggled(bool checked);
+	void on_GenerateButton_clicked();
 };
 
 #endif // MAINWINDOW_H

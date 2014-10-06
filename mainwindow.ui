@@ -6,20 +6,20 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>275</height>
+    <width>500</width>
+    <height>350</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>400</width>
-    <height>275</height>
+    <width>500</width>
+    <height>350</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>400</width>
-    <height>275</height>
+    <width>500</width>
+    <height>350</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -31,8 +31,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>400</width>
-      <height>210</height>
+      <width>500</width>
+      <height>290</height>
      </rect>
     </property>
     <property name="sizePolicy">
@@ -55,11 +55,14 @@
     </property>
    </widget>
    <widget class="QLineEdit" name="SendText">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>0</x>
-      <y>210</y>
-      <width>320</width>
+      <y>290</y>
+      <width>420</width>
       <height>20</height>
      </rect>
     </property>
@@ -76,8 +79,8 @@
    <widget class="QPushButton" name="SendButton">
     <property name="geometry">
      <rect>
-      <x>320</x>
-      <y>210</y>
+      <x>420</x>
+      <y>290</y>
       <width>80</width>
       <height>20</height>
      </rect>
@@ -91,126 +94,15 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>400</width>
-      <height>230</height>
+      <width>500</width>
+      <height>310</height>
      </rect>
     </property>
-    <widget class="QLineEdit" name="PrimePText">
-     <property name="geometry">
-      <rect>
-       <x>150</x>
-       <y>30</y>
-       <width>113</width>
-       <height>25</height>
-      </rect>
-     </property>
-    </widget>
-    <widget class="QLabel" name="PrimePLabel">
-     <property name="geometry">
-      <rect>
-       <x>40</x>
-       <y>30</y>
-       <width>111</width>
-       <height>25</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Prime Number P: </string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="PrimePRand">
-     <property name="geometry">
-      <rect>
-       <x>270</x>
-       <y>30</y>
-       <width>80</width>
-       <height>25</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Random</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="PrimeQRand">
-     <property name="geometry">
-      <rect>
-       <x>270</x>
-       <y>70</y>
-       <width>80</width>
-       <height>25</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Random</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="PrimeQText">
-     <property name="geometry">
-      <rect>
-       <x>150</x>
-       <y>70</y>
-       <width>113</width>
-       <height>25</height>
-      </rect>
-     </property>
-    </widget>
-    <widget class="QLabel" name="PrimeQLabel">
-     <property name="geometry">
-      <rect>
-       <x>40</x>
-       <y>70</y>
-       <width>111</width>
-       <height>25</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Prime Number Q: </string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="EncKeyRand">
-     <property name="geometry">
-      <rect>
-       <x>270</x>
-       <y>110</y>
-       <width>80</width>
-       <height>25</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Random</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="EncKeyText">
-     <property name="geometry">
-      <rect>
-       <x>150</x>
-       <y>110</y>
-       <width>113</width>
-       <height>25</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>65537</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="EncKeyLabel">
-     <property name="geometry">
-      <rect>
-       <x>40</x>
-       <y>110</y>
-       <width>111</width>
-       <height>25</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Encryption Key: </string>
-     </property>
-    </widget>
     <widget class="QLabel" name="PeerIPLabel">
      <property name="geometry">
       <rect>
-       <x>40</x>
-       <y>190</y>
+       <x>0</x>
+       <y>280</y>
        <width>121</width>
        <height>25</height>
       </rect>
@@ -222,9 +114,9 @@
     <widget class="QLineEdit" name="PeerIPText">
      <property name="geometry">
       <rect>
-       <x>150</x>
-       <y>190</y>
-       <width>113</width>
+       <x>120</x>
+       <y>280</y>
+       <width>191</width>
        <height>25</height>
       </rect>
      </property>
@@ -241,9 +133,9 @@
      </property>
      <property name="geometry">
       <rect>
-       <x>270</x>
-       <y>190</y>
-       <width>80</width>
+       <x>399</x>
+       <y>280</y>
+       <width>101</width>
        <height>25</height>
       </rect>
      </property>
@@ -251,24 +143,11 @@
       <string>Connect</string>
      </property>
     </widget>
-    <widget class="QLabel" name="DescLabel1">
-     <property name="geometry">
-      <rect>
-       <x>40</x>
-       <y>10</y>
-       <width>191</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>RSA Encryption Values To Use...</string>
-     </property>
-    </widget>
     <widget class="QLabel" name="DescLabel2">
      <property name="geometry">
       <rect>
-       <x>40</x>
-       <y>170</y>
+       <x>0</x>
+       <y>260</y>
        <width>191</width>
        <height>16</height>
       </rect>
@@ -281,13 +160,44 @@
      <property name="geometry">
       <rect>
        <x>0</x>
-       <y>145</y>
-       <width>400</width>
+       <y>240</y>
+       <width>500</width>
        <height>20</height>
       </rect>
      </property>
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="GenerateButton">
+     <property name="geometry">
+      <rect>
+       <x>340</x>
+       <y>200</y>
+       <width>131</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Generate</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_6">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>10</y>
+       <width>481</width>
+       <height>121</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Since you have not manually loaded a public/private key pair, one can be
+generated for this session and exported to files for future use. It is highly
+recommended that you can confirm in person or across a very trusted medium
+that your peers have received and saved your public key to ensure security
+against a man-in-the-middle actively injecting false public keys as belonging to
+you. Other than that, this </string>
      </property>
     </widget>
    </widget>
@@ -296,8 +206,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>400</width>
-      <height>230</height>
+      <width>501</width>
+      <height>311</height>
      </rect>
     </property>
     <widget class="QGroupBox" name="groupBox">
@@ -305,19 +215,19 @@
       <rect>
        <x>10</x>
        <y>20</y>
-       <width>381</width>
-       <height>201</height>
+       <width>481</width>
+       <height>271</height>
       </rect>
      </property>
      <property name="title">
-      <string>Set RSA Values From Files</string>
+      <string>Retreive Keys From Files</string>
      </property>
      <widget class="QLineEdit" name="PasswordLine">
       <property name="geometry">
        <rect>
         <x>150</x>
-        <y>90</y>
-        <width>113</width>
+        <y>150</y>
+        <width>311</width>
         <height>23</height>
        </rect>
       </property>
@@ -339,7 +249,7 @@
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>90</y>
+        <y>150</y>
         <width>131</width>
         <height>25</height>
        </rect>
@@ -352,7 +262,7 @@
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>120</y>
+        <y>180</y>
         <width>71</width>
         <height>25</height>
        </rect>
@@ -378,7 +288,7 @@
       <property name="geometry">
        <rect>
         <x>90</x>
-        <y>120</y>
+        <y>180</y>
         <width>80</width>
         <height>25</height>
        </rect>
@@ -390,8 +300,8 @@
      <widget class="QPushButton" name="OKButton">
       <property name="geometry">
        <rect>
-        <x>290</x>
-        <y>170</y>
+        <x>390</x>
+        <y>240</y>
         <width>81</width>
         <height>23</height>
        </rect>
@@ -405,7 +315,7 @@
        <rect>
         <x>180</x>
         <y>30</y>
-        <width>191</width>
+        <width>280</width>
         <height>50</height>
        </rect>
       </property>
@@ -420,8 +330,8 @@
       <property name="geometry">
        <rect>
         <x>180</x>
-        <y>120</y>
-        <width>191</width>
+        <y>180</y>
+        <width>280</width>
         <height>50</height>
        </rect>
       </property>
@@ -448,8 +358,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>400</width>
-      <height>230</height>
+      <width>500</width>
+      <height>310</height>
      </rect>
     </property>
     <widget class="QCheckBox" name="SavePublicCB">
@@ -488,8 +398,8 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>70</y>
-       <width>381</width>
+       <y>150</y>
+       <width>481</width>
        <height>151</height>
       </rect>
      </property>
@@ -501,7 +411,7 @@
        <rect>
         <x>120</x>
         <y>110</y>
-        <width>101</width>
+        <width>241</width>
         <height>25</height>
        </rect>
       </property>
@@ -550,7 +460,7 @@
        <rect>
         <x>120</x>
         <y>30</y>
-        <width>101</width>
+        <width>241</width>
         <height>25</height>
        </rect>
       </property>
@@ -560,7 +470,7 @@
        <rect>
         <x>120</x>
         <y>80</y>
-        <width>101</width>
+        <width>241</width>
         <height>25</height>
        </rect>
       </property>
@@ -571,7 +481,7 @@
      <widget class="QPushButton" name="CreateKeysButton">
       <property name="geometry">
        <rect>
-        <x>260</x>
+        <x>390</x>
         <y>110</y>
         <width>80</width>
         <height>25</height>
@@ -590,7 +500,7 @@
       <rect>
        <x>280</x>
        <y>10</y>
-       <width>101</width>
+       <width>201</width>
        <height>25</height>
       </rect>
      </property>
@@ -613,7 +523,7 @@
       <rect>
        <x>280</x>
        <y>40</y>
-       <width>101</width>
+       <width>201</width>
        <height>25</height>
       </rect>
      </property>
@@ -635,10 +545,10 @@
    <widget class="QLabel" name="StatusLabel">
     <property name="geometry">
      <rect>
-      <x>10</x>
-      <y>234</y>
-      <width>381</width>
-      <height>21</height>
+      <x>0</x>
+      <y>310</y>
+      <width>500</width>
+      <height>20</height>
      </rect>
     </property>
     <property name="font">
@@ -649,21 +559,24 @@
     <property name="text">
      <string>Not Connected</string>
     </property>
+    <property name="alignment">
+     <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
+    </property>
    </widget>
-   <zorder>ConnectSettingsWidget</zorder>
    <zorder>LoadMyKeysWidget</zorder>
    <zorder>OptionsWidget</zorder>
-   <zorder>SendButton</zorder>
-   <zorder>ReceiveText</zorder>
    <zorder>SendText</zorder>
+   <zorder>SendButton</zorder>
    <zorder>StatusLabel</zorder>
+   <zorder>ReceiveText</zorder>
+   <zorder>ConnectSettingsWidget</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>400</width>
+     <width>500</width>
      <height>20</height>
     </rect>
    </property>
