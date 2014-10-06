@@ -182,11 +182,11 @@
       <string>Generate</string>
      </property>
     </widget>
-    <widget class="QLabel" name="label_6">
+    <widget class="QLabel" name="PublicKeyInfoLabel">
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>10</y>
+       <y>30</y>
        <width>481</width>
        <height>121</height>
       </rect>
@@ -198,6 +198,9 @@ recommended that you can confirm in person or across a very trusted medium
 that your peers have received and saved your public key to ensure security
 against a man-in-the-middle actively injecting false public keys as belonging to
 you. Other than that, this </string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
      </property>
     </widget>
    </widget>
@@ -577,13 +580,13 @@ ramifications before enabling)</string>
      <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
     </property>
    </widget>
-   <zorder>ConnectSettingsWidget</zorder>
+   <zorder>OptionsWidget</zorder>
    <zorder>LoadMyKeysWidget</zorder>
    <zorder>SendText</zorder>
    <zorder>SendButton</zorder>
    <zorder>StatusLabel</zorder>
    <zorder>ReceiveText</zorder>
-   <zorder>OptionsWidget</zorder>
+   <zorder>ConnectSettingsWidget</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">

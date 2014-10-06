@@ -14,6 +14,9 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
 
     CreateActions();
 
+	setTabOrder(ui->MyPublicLocLine, ui->MyPrivatePassLine); // a to b
+    setTabOrder(ui->MyPrivatePassLine, ui->MyPrivateLocLine); // a to b to c
+
     ui->ConnectSettingsWidget->setHidden(true);
     ui->OptionsWidget->setHidden(true);
     ui->LoadMyKeysWidget->setHidden(true);
@@ -74,8 +77,12 @@ void MainWindow::ConnectSetup()
     ui->ReceiveText->setHidden(!shown);
     ui->SendText->setHidden(!shown);
     ui->SendButton->setHidden(!shown);
-	if(IsIP(ui->PeerIPText->text().toStdString()) && ((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0)))
-        ui->ConnectButton->setEnabled(true);
+	if((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0))
+	{
+		ui->PublicKeyInfoLabel->setText(tr("Public/private keys are set."));
+		if(IsIP(ui->PeerIPText->text().toStdString()))
+		    ui->ConnectButton->setEnabled(true);
+	}
 }
 
 void MainWindow::Disconnect()
@@ -183,11 +190,13 @@ void MainWindow::on_CreateKeysButton_clicked()
     {
 		if((MyPTP.UseRSA && MyPTP.MyMod == 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] == 0))
 		{
+			msgBox = new QMessageBox;
 			msgBox->setText(tr("Since no public keys are in memory,\nwill generate new ones."));
 	        msgBox->setIcon(QMessageBox::Information);
 	        msgBox->setStandardButtons(QMessageBox::Ok);
 	        msgBox->exec();
 	        delete msgBox;
+
 			if(MyPTP.UseRSA)
 			{
 				NewRSA.KeyGenerator(Keys, Mod, *rng, true, false);
@@ -198,7 +207,6 @@ void MainWindow::on_CreateKeysButton_clicked()
 			else
 				ECC_Curve25519_Create(MyPTP.CurveP, MyPTP.CurveK, *rng);
 		}
-
         string Passwd = ui->MyPrivatePassLine->text().toStdString();
 		ui->MyPrivateLocLine->text().toStdWString();
 
@@ -220,9 +228,11 @@ void MainWindow::on_CreateKeysButton_clicked()
 			ui->MyPrivatePassLine->clear();
 			MakeCurvePublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.CurveP);
 		}
+		ui->StatusLabel->setText(tr("Generated Keys Successfully"));
 	}
     else
     {
+		msgBox = new QMessageBox;
         msgBox->setText(tr("Missing file locations."));
         msgBox->setIcon(QMessageBox::Warning);
         msgBox->setStandardButtons(QMessageBox::Ok);

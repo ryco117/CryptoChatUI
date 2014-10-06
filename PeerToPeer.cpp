@@ -19,11 +19,11 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 		close(Serv);
 		return -1;
 	}
-	
-	memset(&socketInfo, 0, sizeof(socketInfo));			//Clear data inside socketInfo to be filled with server stuff
-	socketInfo.sin_family = AF_INET;					//Use IP addresses
-	socketInfo.sin_addr.s_addr = htonl(INADDR_ANY);		//Allow connection from anybody
-	socketInfo.sin_port = htons(Port);					//Use port Port
+
+	memset(&socketInfo, 0, sizeof(socketInfo));						//Clear data inside socketInfo to be filled with server stuff
+	socketInfo.sin_family = AF_INET;								//Use IP addresses
+	socketInfo.sin_addr.s_addr = htonl(INADDR_ANY);					//Allow connection from anybody
+	socketInfo.sin_port = htons(Port);								//Use port Port
 	
 	int optval = 1;
 	setsockopt(Serv, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);		//Remove Bind already used error
@@ -71,39 +71,39 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 
 int PeerToPeer::Update()
 {
-    read_fds = master;			//assign read_fds back to the unchanged master
+    read_fds = master;											//assign read_fds back to the unchanged master
     if(select(fdmax+1, &read_fds, NULL, NULL, &zero) == -1)		//Check for stuff to read on sockets, up to fdmax+1.. stop check after timeval zero (50ms)
     {
         return -3;
     }
-    for(int i = 0; i < MaxClients + 1; i++)		//Look through all sockets
+    for(unsigned int i = 0; i < MaxClients + 1; i++)			//Look through all sockets
     {
-        if(MySocks[i] == -1)		//if MySocks[i] == -1 then go just continue the for loop, this part of the array hasn't been assigned a socket
+        if(MySocks[i] == -1)									//if MySocks[i] == -1 then go just continue the for loop, this part of the array hasn't been assigned a socket
             continue;
-        if(FD_ISSET(MySocks[i], &read_fds))		//check read_fds to see if there is unread data in MySocks[i]
+        if(FD_ISSET(MySocks[i], &read_fds))						//check read_fds to see if there is unread data in MySocks[i]
         {
-            if(i == 0)		//if i = 0, then based on line 52, we know that we are looking at data on the Serv socket... This means new connection!!
+            if(i == 0)											//if i = 0, then based on line 52, we know that we are looking at data on the Serv socket... This means new connection!!
             {
-                if((newSocket = accept(Serv, NULL, NULL)) < 0)		//assign socket newSocket to the person we are accepting on Serv
+                if((newSocket = accept(Serv, NULL, NULL)) < 0)	//assign socket newSocket to the person we are accepting on Serv
                 {
-                    close(Serv);				//unless it errors
+                    close(Serv);								//unless it errors
                     perror("Accept");
                     return -4;
                 }
-                ConnectedSrvr = true;		//Passed All Tests, We Can Safely Say We Connected
+                ConnectedSrvr = true;							//Passed All Tests, We Can Safely Say We Connected
 
-                FD_SET(newSocket, &master); // add the newSocket FD to master set
+                FD_SET(newSocket, &master);						//Add the newSocket FD to master set
                 for(unsigned int j = 1; j < MaxClients + 1; j++)	//assign an unassigned MySocks to newSocket
                 {
-                    if(MySocks[j] == -1)			//Not in use
+                    if(MySocks[j] == -1)						//Not in use
                     {
                         MySocks[j] = newSocket;
-                        if(newSocket > fdmax)		//if the new file descriptor is greater than fdmax..
-                            fdmax = newSocket;		//change fdmax to newSocket
+                        if(newSocket > fdmax)					//if the new file descriptor is greater than fdmax..
+                            fdmax = newSocket;					//Change fdmax to newSocket
                         break;
                     }
                 }
-                if(UseRSA && !HasPub)		//Check if we haven't already assigned the client's public key through an arg.
+                if(UseRSA && !HasPub)							//Check if we haven't already assigned the client's public key through an arg.
                 {
 					char* TempVA = new char[MAX_RSA_SIZE];
 					string TempVS;
@@ -146,7 +146,8 @@ int PeerToPeer::Update()
 						if(!SavePub.empty())
 	                        MakeCurvePublicKey(SavePub, CurvePPeer);
 					}
-					unsigned char SaltStr[16] = {'\x43','\x65','\x12','\x94','\x83','\x05','\x73','\x37','\x65','\x93','\x85','\x64','\x51','\x65','\x64','\x94'};
+					unsigned char SaltStr[16] = {(unsigned char)'\x43',(unsigned char)'\x65',(unsigned char)'\x12',(unsigned char)'\x94',(unsigned char)'\x83',(unsigned char)'\x05',(unsigned char)'\x73',(unsigned char)'\x37',\
+												 (unsigned char)'\x65',(unsigned char)'\x93',(unsigned char)'\x85',(unsigned char)'\x64',(unsigned char)'\x51',(unsigned char)'\x65',(unsigned char)'\x64',(unsigned char)'\x94'};
 					unsigned char Hash[32] = {0};
 
 					curve25519_donna(SharedKey, CurveK, CurvePPeer);
