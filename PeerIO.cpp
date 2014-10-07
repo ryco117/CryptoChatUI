@@ -101,12 +101,7 @@ void PeerToPeer::SendFilePt2()
 		File.close();
 		if(Finished)
 		{
-			QMessageBox* msgBox = new QMessageBox;
-			msgBox->setText(QString("Finished sending ") + QString(FileToSend.c_str()) + QString(", ") + QString::number(FilePos + FileLeft) + QString(" bytes were sent."));
-			msgBox->setIcon(QMessageBox::Information);
-			msgBox->setStandardButtons(QMessageBox::Ok);
-			msgBox->exec();
-			delete msgBox;
+			ui->StatusLabel->setText(QString("Finished sending ") + QString(FileToSend.c_str()) + QString("."));
 		}
 	}
 	return;
@@ -133,12 +128,7 @@ void PeerToPeer::ReceiveFile(string Msg)
 
 		if(BytesRead == FileLength)
 		{
-			QMessageBox* msgBox = new QMessageBox;
-			msgBox->setText(QString("Finished saving ") + QString(FileLoc.c_str()) + QString(", ") + QString::number(FileLength) + QString(" bytes."));
-			msgBox->setIcon(QMessageBox::Information);
-			msgBox->setStandardButtons(QMessageBox::Ok);
-			msgBox->exec();
-			delete msgBox;
+			ui->StatusLabel->setText(QString("Finished saving ") + QString(FileLoc.c_str()) + QString(", ") + QString::number(FileLength) + QString(" bytes."));
 		}
 		File.close();
 	}

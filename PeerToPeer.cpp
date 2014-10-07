@@ -222,7 +222,6 @@ int PeerToPeer::Update()
 						{
 							ui->StatusLabel->setText(QString("The received IV is bad"));
 						}
-
 						try
 						{
 							Msg = Msg.substr(IV64_LEN+1);
@@ -278,24 +277,21 @@ int PeerToPeer::Update()
                         Accept[1] = c;
                         send(Client, Accept.c_str(), Accept.length(), 0);
                     }
-                    else if(Msg[0] == 2)
+                    else if(Msg[0] == 2 && Sending == 2)
                     {
                         if(Msg[1] == 'y')
                         {
                             Sending = 3;
                             FilePos = 0;
+							ui->StatusLabel->setText(QString("Peer accepted file."));
                         }
                         else
                         {
                             Sending = 0;
-                            QMessageBox* msgBox = new QMessageBox;
-                            msgBox->setText(QString("Peer rejected file. The transfer was cancelled."));
-                            msgBox->setIcon(QMessageBox::Question);
-                            msgBox->setStandardButtons(QMessageBox::Ok);
-                            msgBox->exec();
+                            ui->StatusLabel->setText(QString("Peer rejected file. The transfer was cancelled."));
                         }
                     }
-                    else if(Msg[0] == 3)
+                    else if(Msg[0] == 3 && Sending == -1)
                     {
 						try
 						{

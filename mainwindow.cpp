@@ -83,6 +83,15 @@ void MainWindow::ConnectSetup()
 		if(IsIP(ui->PeerIPText->text().toStdString()))
 		    ui->ConnectButton->setEnabled(true);
 	}
+	else
+	{
+		ui->PublicKeyInfoLabel->setText(tr("Since you have not manually loaded a public/private key pair, one can be\n\
+										   generated for this session and exported to files for future use. It is highly\n\
+										   recommended that you can confirm in person or across a very trusted medium\n\
+										   that your peers have received and saved your public key to ensure security\n\
+										   against a man-in-the-middle actively injecting false public keys as belonging to\n\
+										   you."));
+	}
 }
 
 void MainWindow::Disconnect()
