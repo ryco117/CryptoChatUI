@@ -12,6 +12,12 @@ void PeerToPeer::SendFilePt1()
     QString QFileName = QFileDialog::getOpenFileName(parent, QString("Open File"), "", QString("Files (*.*)"));
     string FileRequest = QFileName.toStdString();
 
+	if(FileRequest.empty())
+	{
+		Sending = 0;
+		return;
+	}
+
     fstream File(FileRequest.c_str(), ios::in);
 	if(File.is_open())
 	{

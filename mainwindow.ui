@@ -192,15 +192,10 @@
       </rect>
      </property>
      <property name="text">
-      <string>Since you have not manually loaded a public/private key pair, one can be
-generated for this session and exported to files for future use. It is highly
-recommended that you can confirm in person or across a very trusted medium
-that your peers have received and saved your public key to ensure security
-against a man-in-the-middle actively injecting false public keys as belonging to
-you.</string>
+      <string>Since you have not manually loaded a public/private key pair, one can be&lt;br/&gt;generated for this session and exported to files for future use. It is highly&lt;br/&gt;recommended that you can confirm in person or across a very trusted medium&lt;br/&gt;that your peers have received and saved your public key to ensure security&lt;br/&gt;against a man-in-the-middle actively injecting false public keys as belonging to&lt;br/&gt;you.</string>
      </property>
      <property name="textFormat">
-      <enum>Qt::PlainText</enum>
+      <enum>Qt::RichText</enum>
      </property>
      <property name="alignment">
       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>

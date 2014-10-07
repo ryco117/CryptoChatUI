@@ -14,8 +14,8 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
 
     CreateActions();
 
-	setTabOrder(ui->MyPublicLocLine, ui->MyPrivatePassLine); // a to b
-    setTabOrder(ui->MyPrivatePassLine, ui->MyPrivateLocLine); // a to b to c
+	setTabOrder(ui->MyPublicLocLine, ui->MyPrivatePassLine);
+    setTabOrder(ui->MyPrivatePassLine, ui->MyPrivateLocLine);
 
     ui->ConnectSettingsWidget->setHidden(true);
     ui->OptionsWidget->setHidden(true);
@@ -39,6 +39,7 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
     MyPTP.Sending = 0;
     MyPTP.SentStuff = 0;
     MyPTP.RNG = rng;
+	MyPTP.GConnected = false;
 	MyPTP.HasPub = false;
 	MyPTP.UseRSA = false;
 
@@ -85,11 +86,11 @@ void MainWindow::ConnectSetup()
 	}
 	else
 	{
-		ui->PublicKeyInfoLabel->setText(tr("Since you have not manually loaded a public/private key pair, one can be\n\
-										   generated for this session and exported to files for future use. It is highly\n\
-										   recommended that you can confirm in person or across a very trusted medium\n\
-										   that your peers have received and saved your public key to ensure security\n\
-										   against a man-in-the-middle actively injecting false public keys as belonging to\n\
+		ui->PublicKeyInfoLabel->setText(tr("Since you have not manually loaded a public/private key pair, one can be<br/>\
+										   generated for this session and exported to files for future use. It is highly<br/>\
+										   recommended that you can confirm in person or across a very trusted medium<br/>\
+										   that your peers have received and saved your public key to ensure security<br/>\
+										   against a man-in-the-middle actively injecting false public keys as belonging to<br/>\
 										   you."));
 	}
 }
@@ -351,7 +352,19 @@ void MainWindow::LoadPeerPublicKey()
 void MainWindow::Help()
 {
     msgBox = new QMessageBox;
-    msgBox->setText(tr("Gah!"));
+    msgBox->setText(tr("Don't understand how all this encryption stuff fits togther?<br/>\
+						<b>Consult the book of knowledge!</b><br/>\
+						<a href=\"http://en.wikipedia.org/wiki/Public-key_cryptography\">Public Key Cryptography</a><br/>\
+						<a href=\"http://en.wikipedia.org/wiki/Elliptic_curve_Diffie%E2%80%93Hellman\">ECDH</a><br/>\
+						<a href=\"http://simple.wikipedia.org/wiki/RSA_%28algorithm%29\">RSA</a><br/>\
+						<a href=\"http://en.wikipedia.org/wiki/Symmetric-key_algorithm\">Symmetric Key Cryptography</a><br/>\
+						<a href=\"http://en.wikipedia.org/wiki/Advanced_Encryption_Standard\">AES</a><br/>\
+						<a href=\"http://en.wikipedia.org/wiki/Scrypt\">Scrypt</a><br/><br/>\
+						Still have questions? Maybe I'll make a website explaining usage in detail... Someday..."));
+
+	msgBox->setTextFormat(Qt::RichText);
+	msgBox->setTextInteractionFlags(Qt::TextBrowserInteraction);
+
     msgBox->setIcon(QMessageBox::Information);
     msgBox->setStandardButtons(QMessageBox::Ok);
     msgBox->exec();
@@ -375,7 +388,7 @@ void MainWindow::SendFileAction()
     else
     {
         msgBox = new QMessageBox;
-        msgBox->setText(tr("You can't do that right now"));
+        msgBox->setText(tr("You can't do that right now."));
         msgBox->setIcon(QMessageBox::Warning);
         msgBox->setStandardButtons(QMessageBox::Ok);
         msgBox->exec();
