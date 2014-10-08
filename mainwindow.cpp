@@ -374,7 +374,19 @@ void MainWindow::Help()
 void MainWindow::About()
 {
     msgBox = new QMessageBox;
-    msgBox->setText(tr("This is a GUI version of the original CryptoChat.\nIt was built to maintain complete compatability\nbetween the two versions and so, has the same\ncapabilities and functionality.\n\n\tDeveloped by ryco117"));
+    msgBox->setText(tr("This is a GUI version of the original CryptoChat.\
+					   It was built to maintain complete compatability \
+					   between the two versions and so, has the same \
+					   capabilities and functionality.<br/><br/>\
+					   A secure, chat program that uses ECC Curve25519 or 4096 bit RSA keys to exchange a \
+					   256 bit AES key, which is used for the rest of the chat. It uses GMP for it's large number arithmetic. \
+					   The public and private keys generated can be stored to files to be reused. The private key may be encrypted\
+					   with 256 bit AES using a randomly generated IV and a key derived from a password using scrypt with a \
+					   random salt. It is the successor to the original CryptoChat and maintains complete compatibility with it, \
+					   but with a nice Qt based graphical interface. Enjoy top-notch, uber-level secure chats (most often about \
+					   security, you know it's true :P ).<br/><br/>\
+					   \tDeveloped by ryco117"));
+	msgBox->setTextFormat(Qt::RichText);
     msgBox->setIcon(QMessageBox::Information);
     msgBox->setStandardButtons(QMessageBox::Ok);
     msgBox->exec();
