@@ -4,6 +4,7 @@
 #include "KeyManager.h"
 #include "base64.h"
 
+int recvr(int socket, char* buffer, int length, int flags);
 string GetName(string file);
 
 void PeerToPeer::SendFilePt1()
@@ -24,19 +25,40 @@ void PeerToPeer::SendFilePt1()
 		FileToSend = FileRequest;
 		FileRequest = GetName(FileRequest);
 		File.seekg(0, File.end);
-		unsigned int Length = File.tellg();
-		stringstream ss;
-		ss << Length;
+		__uint64_t Length = File.tellg();
 
 		mpz_class IV = RNG->get_z_bits(128);
-		string EncName = ss.str() + "X" + FileRequest;
+		string EncName;
+
+		//Network Endian
+		EncName.push_back((char)(Length >> 56));
+		EncName.push_back((char)((Length >> 48) & 0xFF));
+		EncName.push_back((char)((Length >> 40) & 0xFF));
+		EncName.push_back((char)((Length >> 32) & 0xFF));
+		EncName.push_back((char)((Length >> 24) & 0xFF));
+		EncName.push_back((char)((Length >> 16) & 0xFF));
+		EncName.push_back((char)((Length >> 8) & 0xFF));
+		EncName.push_back((char)(Length & 0xFF));
+
+		EncName += FileRequest;
 		EncName = MyAES.Encrypt(SymKey, EncName, IV);
 		string IVStr = Export64(IV);
 		while(IVStr.size() < IV64_LEN)
 			IVStr.push_back('\0');
 
-		FileRequest = "x" + IVStr + EncName;
+		FileRequest = "x" + IVStr;
+
+		//Network Endian
+		FileRequest.push_back((char)((__uint32_t)EncName.size() >> 24));
+		FileRequest.push_back((char)(((__uint32_t)EncName.size() >> 16) & 0xFF));
+		FileRequest.push_back((char)(((__uint32_t)EncName.size() >> 8) & 0xFF));
+		FileRequest.push_back((char)((__uint32_t)EncName.size() & 0xFF));
+
+		FileRequest += EncName;
 		FileRequest[0] = 1;
+
+		while(FileRequest.length() < RECV_SIZE)
+			FileRequest.push_back('\0');
 
 		if(send(Client, FileRequest.c_str(), FileRequest.length(), 0) < 0)
 		{
@@ -91,10 +113,20 @@ void PeerToPeer::SendFilePt2()
 		while(SIV.size() < IV64_LEN)
 			SIV.push_back('\0');
 		
-		string Final = "x";
-		Final += SIV;
-		Final += MyAES.Encrypt(SymKey, Data, IV);
+		string Final = "x" + SIV;
+		string EncData = MyAES.Encrypt(SymKey, Data, IV);
+
+		//Network Endian
+		Final.push_back((char)((__uint32_t)EncData.size() >> 24));
+		Final.push_back((char)(((__uint32_t)EncData.size() >> 16) & 0xFF));
+		Final.push_back((char)(((__uint32_t)EncData.size() >> 8) & 0xFF));
+		Final.push_back((char)((__uint32_t)EncData.size() & 0xFF));
+
+		Final += EncData;
 		Final[0] = 3;
+
+		while(Final.size() < RECV_SIZE)
+			Final.push_back('\0');
 
 		int n = send(Client, Final.c_str(), Final.length(), 0);	//send the client the encrypted message
 		if(n == -1)
@@ -167,14 +199,37 @@ void PeerToPeer::SendMessage()
 
     mpz_class IV = RNG->get_z_bits(128);
 	CipherMsg = "x" + Export64(IV);
-	while(CipherMsg.size() < IV64_LEN+1)
+	CipherMsg[0] = 0;
+	while(CipherMsg.size() < 1 + IV64_LEN)
 		CipherMsg.push_back('\0');
 
-	CipherMsg[0] = 0;
-    CipherMsg += MyAES.Encrypt(SymKey, ba.data(), IV);
+	string EncMsg = MyAES.Encrypt(SymKey, ba.data(), IV);
 
-	send(Client, CipherMsg.c_str(), CipherMsg.length(), 0);	//send the client the encrypted message
+	//Network Endian
+	CipherMsg.push_back((char)((__uint32_t)EncMsg.size() >> 24));
+	CipherMsg.push_back((char)(((__uint32_t)EncMsg.size() >> 16) & 0xFF));
+	CipherMsg.push_back((char)(((__uint32_t)EncMsg.size() >> 8) & 0xFF));
+	CipherMsg.push_back((char)((__uint32_t)EncMsg.size() & 0xFF));
+	CipherMsg += EncMsg;
+
+	while(CipherMsg.size() < RECV_SIZE)
+		CipherMsg.push_back('\0');
+
+	send(Client, CipherMsg.c_str(), CipherMsg.length(), 0);
 	return;
+}
+
+inline int recvr(int socket, char* buffer, int length, int flags)
+{
+	int i = 0;
+	while(i < length)
+	{
+		int n = recv(socket, &buffer[i], length-i, flags);
+		if(n <= 0)
+			return n;
+		i += n;
+	}
+	return i;
 }
 
 inline string GetName(string file)

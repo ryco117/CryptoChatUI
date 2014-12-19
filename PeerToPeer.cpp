@@ -3,7 +3,7 @@
 
 #define IV64_LEN 24											//The max length an IV for AES could be (in base64)
 #define FILE_PIECE_LEN 2048									//The size in bytes of the blocks used for file sending
-#define RECV_SIZE (1 + IV64_LEN + FILE_PIECE_LEN + 16)		//Max size that a message could possibly be in bytes after initial setup
+#define RECV_SIZE (1 + IV64_LEN + 4 + FILE_PIECE_LEN + 16)	//Max size that a message could possibly be in bytes after initial setup
 #define MAX_RSA_SIZE 4097									//Max size in bytes that the public key when sent will fill (this is for 16384 bit RSA)
 
 #include "PeerToPeer.h"
@@ -107,7 +107,7 @@ int PeerToPeer::Update()
                 {
 					char* TempVA = new char[MAX_RSA_SIZE];
 					string TempVS;
-					nbytes = recv(newSocket, TempVA, MAX_RSA_SIZE, 0);
+					nbytes = recvr(newSocket, TempVA, MAX_RSA_SIZE, 0);
 
 					for(unsigned int i = 0; i < (unsigned int)nbytes; i++)
 						TempVS.push_back(TempVA[i]);
@@ -142,7 +142,7 @@ int PeerToPeer::Update()
 				{
 					if(!HasPub)
 					{
-						nbytes = recv(newSocket, CurvePPeer, 32, 0);
+						nbytes = recvr(newSocket, (char*)CurvePPeer, 32, 0);
 						if(!SavePub.empty())
 	                        MakeCurvePublicKey(SavePub, CurvePPeer);
 					}
@@ -156,13 +156,13 @@ int PeerToPeer::Update()
 				}
 				HasPub = true;
             }
-            else		//Data is on a new socket
+            else
             {
-				char buf[RECV_SIZE] = {'\0'};	//1068 is the max possible incoming data (file part with iv and leading byte)
-				for(unsigned int j = 0; j < RECV_SIZE; j++)
-                    buf[j] = '\0';
+				char buf[RECV_SIZE];	//RECV_SIZE is the max possible incoming data (file part with iv, leading byte, and data size)
+				memset(buf, 0, RECV_SIZE);
+				nbytes = recvr(MySocks[i], buf, RECV_SIZE, 0);
 
-				if((nbytes = recv(MySocks[i], buf, RECV_SIZE, 0)) <= 0)		//handle data from a client
+				if(nbytes <= 0)		//handle data from a client
                 {
                     // got error or connection closed by client
                     if(nbytes == 0)
@@ -202,60 +202,61 @@ int PeerToPeer::Update()
                 }
 				else
                 {
-                    string Msg = "";				//lead byte for data id | varying extension info		| main data
-													//-----------------------------------------------------------------------------------------------------
-													//0 = msg        	 	| IV64_LEN chars for IV			| 512 message chars (or less)
-													//1 = file request	 	| X chars for file length		| Y chars for file loc.
-													//2 = request answer 	| 1 char for answer				|
-													//3 = file piece	 	| IV64_LEN chars for IV			| FILE_PIECE_LEN bytes of file piece (or less)
+					string Msg = "";	//lead byte for data id | varying extension info		| data length identifier	| main data
+										//-------------------------------------------------------------------------------------------------------------------------------------
+										//0 = msg				| IV64_LEN chars for encoded IV	| __int32 message length	| Enc. message
+										//1 = file request		| IV64_LEN chars for encoded IV | __int32 information length| Enc. __uint64 file length & file name
+										//2 = request answer 	|								| (none, always 1 byte)		| response (not encrypted because a MitM would know anyway)
+										//3 = file piece		| IV64_LEN chars for encoded IV	| __int32 file piece length	| Enc. file piece
 
-					for(unsigned int i = 0; i < (unsigned int)nbytes; i++)	//If we do a simple assign, the string will stop reading at a null terminator ('\0')
-                        Msg.push_back(buf[i]);					//so manually push back all values in array buf...
-
-					if(Msg[0] == 0)
+					if(buf[0] == 0)																//Message
 					{
+						nbytes = ntohl(*((__int32_t*)&buf[1 + IV64_LEN]));
+						for(unsigned int i = 0; i < 1 + IV64_LEN + 4 + (unsigned int)nbytes; i++)	//If we do a simple assign, the string will stop reading at a null terminator ('\0')
+	                        Msg.push_back(buf[i]);													//so manually push back values in array buf...
+
 						try
 						{
 							Import64(Msg.substr(1, IV64_LEN), PeerIV);
+							Msg = Msg.substr(1 + IV64_LEN + 4);
 						}
 						catch(int e)
 						{
-							ui->StatusLabel->setText(QString("The received IV is bad"));
+							ui->StatusLabel->setText(QString("The received message is corrupt."));
+							continue;
 						}
-						try
-						{
-							Msg = Msg.substr(IV64_LEN+1);
-						}
-						catch(int e)
-						{
-							cout << "Bad message\n";
-							ui->StatusLabel->setText(QString("Bad message received"));
-						}
+
 						DropLine(Msg);
                     }
-                    else if(Msg[0] == 1)
+                    else if(buf[0] == 1)										//File Request
                     {
-                        Sending = -1;		//Receive file mode
+						nbytes = ntohl(*((__int32_t*)&buf[1 + IV64_LEN]));
+						for(unsigned int i = 0; i < 1 + IV64_LEN + 4 + (unsigned int)nbytes; i++)
+							Msg.push_back(buf[i]);
+
 						try
 						{
 							Import64(Msg.substr(1, IV64_LEN), PeerIV);
+							Msg = Msg.substr(1 + IV64_LEN + 4);
 						}
 						catch(int e)
 						{
-							ui->StatusLabel->setText(QString("Bad IV\n"));
+							ui->StatusLabel->setText(QString("The received file request is corrupt."));
+							continue;
 						}
 						string PlainText;
 						try
 						{
-							PlainText = MyAES.Decrypt(SymKey, Msg.substr(IV64_LEN+1), PeerIV);
+							PlainText = MyAES.Decrypt(SymKey, Msg, PeerIV);
 						}
 						catch(string e)
 						{
 							ui->StatusLabel->setText(QString(e.c_str()));
+							continue;
 						}
 
-                        FileLength = atoi(PlainText.substr(0, PlainText.find("X", 1)).c_str());
-						FileLoc = PlainText.substr(PlainText.find("X", 1)+1);
+						FileLength = __bswap_64(*((__uint64_t*)PlainText.c_str()));
+						FileLoc = PlainText.substr(8);
 
                         char c;
                         QMessageBox* msgBox = new QMessageBox;
@@ -266,20 +267,23 @@ int PeerToPeer::Update()
                         {
                             c = 'y';
                             BytesRead = 0;
+							Sending = -1;		//Receive file mode
                         }
                         else
                         {
                             c = 'n';
                             Sending = 0;
                         }
-                        string Accept = "xx";
+                        char* Accept = new char[RECV_SIZE];
+						memset(Accept, 0, RECV_SIZE);				//Don't send over 1KB of recently freed memory over network...
                         Accept[0] = 2;
                         Accept[1] = c;
-                        send(Client, Accept.c_str(), Accept.length(), 0);
+                        send(Client, Accept, RECV_SIZE, 0);
+						delete[] Accept;
                     }
-                    else if(Msg[0] == 2 && Sending == 2)
+                    else if(buf[0] == 2)//&& Sending == 2 (removed for testing)
                     {
-                        if(Msg[1] == 'y')
+                        if(buf[1] == 'y')
                         {
                             Sending = 3;
                             FilePos = 0;
@@ -291,17 +295,24 @@ int PeerToPeer::Update()
                             ui->StatusLabel->setText(QString("Peer rejected file. The transfer was cancelled."));
                         }
                     }
-                    else if(Msg[0] == 3 && Sending == -1)
+                    else if(buf[0] == 3)//&& Sending == -1 (removed for testing)
                     {
+						nbytes = ntohl(*((__int32_t*)&buf[1 + IV64_LEN]));
+						for(unsigned int i = 0; i < 1 + IV64_LEN + 4 + (unsigned int)nbytes; i++)
+							Msg.push_back(buf[i]);
+
 						try
 						{
 							Import64(Msg.substr(1, IV64_LEN), FileIV);
+							Msg = Msg.substr(1 + IV64_LEN + 4);
 						}
 						catch(int e)
 						{
-							ui->StatusLabel->setText(QString("Bad IV value when receiving file"));
+							ui->StatusLabel->setText(QString("The received file piece is corrupt."));
+							Sending = 0;
+							continue;
 						}
-						ReceiveFile(Msg.substr(IV64_LEN+1));
+						ReceiveFile(Msg);
                     }
                 }
             }

@@ -574,6 +574,7 @@ void MainWindow::on_GenerateButton_clicked()
 	{
 		ECC_Curve25519_Create(MyPTP.CurveP, MyPTP.CurveK, *rng);
 	}
+	ui->PublicKeyInfoLabel->setText(tr("Public/private keys are set."));
 	ui->StatusLabel->setText(QString("Private/Public keys created!"));
 	if(IsIP(ui->PeerIPText->text().toStdString()))
         ui->ConnectButton->setEnabled(true);
@@ -581,14 +582,12 @@ void MainWindow::on_GenerateButton_clicked()
 
 void MainWindow::on_PeerIPText_textEdited(const QString &arg1)
 {
+	MyPTP.ClntIP = arg1.toStdString();
 
     if(!IsIP(arg1.toStdString()))
         ui->ConnectButton->setDisabled(true);
     else if((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0))	//For a proper Curve25519, k[31] can't be zero (bit 254 always set) and so this checks if we generated the curve
-    {
-        MyPTP.ClntIP = arg1.toStdString();
         ui->ConnectButton->setEnabled(true);
-    }
 }
 void MainWindow::on_PeerIPText_returnPressed()
 {
