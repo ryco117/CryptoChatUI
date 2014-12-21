@@ -36,14 +36,10 @@ unix:!macx: LIBS += -lgmpxx
 unix:!macx: LIBS += -lgmp
 
 QMAKE_CXXFLAGS += -static
+QMAKE_CXXFLAGS += -Wno-strict-aliasing
 QMAKE_CXXFLAGS += -Wno-unused-function
 QMAKE_CXXFLAGS += -Wno-unused-result
-QMAKE_CXXFLAGS += -Wno-maybe-uninitialized
-
-QMAKE_CXXFLAGS_RELEASE += -O
-QMAKE_CXXFLAGS_RELEASE += -O1
-QMAKE_CXXFLAGS_RELEASE += -O2
-QMAKE_CXXFLAGS_RELEASE += -O3
+QMAKE_CXXFLAGS += -Wno-char-subscripts
 
 #unix:!macx: LIBS += -L$$PWD/../../../../../../usr/local/lib/libscrypt.a
 unix:!macx: LIBS += /usr/local/lib/libscrypt.a

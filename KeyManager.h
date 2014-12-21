@@ -56,8 +56,8 @@ static bool LoadCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Pas
 	fstream File(FileLoc.c_str(), ios::in);
 	if(File.is_open())
 	{
-		char Salt64[24] = {0};
-		char IVStr[24] = {0};
+		char Salt64[25] = {0};
+		char IVStr[25] = {0};
 		mpz_class IV = 0;
 		char Hash[32] = {0};
 		mpz_class FinalKey = 0;
@@ -70,10 +70,24 @@ static bool LoadCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Pas
 		if(strlen(Passwd))
 		{
 			File.read(Salt64, 24);
-			int SaltLen;								//Should equal 16
-			char* Salt = Base64Decode(Salt64, SaltLen);
 			File.read(IVStr, 24);
-			Import64(IVStr, IV);
+			char* Salt;
+			int SaltLen;								//Should equal 16
+			try
+			{
+				Salt = Base64Decode(Salt64, SaltLen);
+				Import64(IVStr, IV);
+			}
+			catch(int e)
+			{
+				cout << "Error: Incorrect password or format\n";
+				return false;
+			}
+			if(SaltLen != 16)
+			{
+				cout << "Error: Incorrect password or format\n";
+				return false;
+			}
 
 			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, 16384, 14, 2, (unsigned char*)Hash, 32);
 			delete[] Salt;
@@ -83,7 +97,7 @@ static bool LoadCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Pas
 			memset(Hash, 0, 32);
 		}
 
-		unsigned int n = FileLength - File.tellg();
+		int n = FileLength - File.tellg();
 		char* Cipher = new char[n];
 		File.read(Cipher, n);
 
@@ -112,7 +126,7 @@ static bool LoadCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Pas
 		else
 			Original = strcpy(Original, Cipher);
 
-		if(strncmp(Original, "crypto-key-ecc\n", 15) == 0)									//Check for proper format
+		if(strncmp(Original, "crypto-key-ecc\n", 15))										//Check for proper format
 		{
 			msgBox = new QMessageBox;
             msgBox->setText(QString("Error: Incorrect password or format"));
@@ -194,27 +208,25 @@ static void MakeCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Pas
 			Original[15 + i] = (char)Key[i];
 
 		AES crypt;
-		char* Cipher = new char[48];
-		if(FinalKey != 0)
-			crypt.Encrypt(Original, 47, IV, FinalKey, Cipher);
-		else
-			Cipher = strcpy(Cipher, Original);
-
 		if(FinalKey != 0)
 		{
+			char* Cipher = new char[48];
+			crypt.Encrypt(Original, 47, IV, FinalKey, Cipher);
 			mpz_xor(FinalKey.get_mpz_t(), FinalKey.get_mpz_t(), FinalKey.get_mpz_t());		//Should zero out all data of our AES key
 			char* S = Base64Encode(Salt, 16);
 			char* I = Export64(IV);
+
 			File.write(S, 24);																//Write the salt in base64
 			File.write(I, 24);																//Write the IV in base64
 			File.write(Cipher, 48);
+
+			delete[] Cipher;
 			delete[] S;
 			delete[] I;
 		}
 		else
-			File.write(Cipher, 47);
+			File.write(Original, 47);
 
-		delete[] Cipher;
 		File.close();
 	}
 	else
@@ -307,8 +319,8 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 	fstream File(FileLoc.c_str(), ios::in);
 	if(File.is_open())
 	{
-        char Salt64[24] = {0};
-        char IVStr[24] = {0};
+        char Salt64[25] = {0};
+        char IVStr[25] = {0};
         mpz_class IV = 0;
         char Hash[32] = {0};
         mpz_class FinalKey = 0;
@@ -321,10 +333,24 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 		if(strlen(Passwd))
 		{
 			File.read(Salt64, 24);
-			int SaltLen;
-			char* Salt = Base64Decode(Salt64, SaltLen);
 			File.read(IVStr, 24);
-			Import64(IVStr, IV);
+			char* Salt;
+			int SaltLen;								//Should equal 16
+			try
+			{
+				Salt = Base64Decode(Salt64, SaltLen);
+				Import64(IVStr, IV);
+			}
+			catch(int e)
+			{
+				cout << "Error: Incorrect password or format\n";
+				return false;
+			}
+			if(SaltLen != 16)
+			{
+				cout << "Error: Incorrect password or format\n";
+				return false;
+			}
 
 			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, 16384, 14, 2, (unsigned char*)Hash, 32);
 			delete[] Salt;
@@ -334,12 +360,13 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 			memset(Hash, 0, 32);
 		}
 
-        unsigned int n = FileLength - File.tellg();
+        int n = FileLength - File.tellg();
         char* Cipher = new char[n];
         File.read(Cipher, n);
 
         AES crypt;
-		char* Original = new char[n];
+		char* Original = new char[n + 1];
+		Original[n] = 0;
         if(FinalKey != 0)
         {
 			n = crypt.Decrypt(Cipher, n, IV, FinalKey, Original);
@@ -361,7 +388,7 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
             mpz_xor(FinalKey.get_mpz_t(), FinalKey.get_mpz_t(), FinalKey.get_mpz_t());		//Should zero out all data of our hash/sym key
         }
         else
-            Original = strcpy(Original, Cipher);
+            memcpy(Original, Cipher, n);
 		
 		if(strncmp(Original, "crypto-key-rsa\n", 15))		//Check for proper format
 		{
@@ -385,7 +412,7 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 		catch(int e)
 		{
             msgBox = new QMessageBox;
-            msgBox->setText(QString("Could not load decryption value from:\n") + QString(FileLoc.c_str()));
+            msgBox->setText(QString("Error: Incorrect password or format"));
             msgBox->setIcon(QMessageBox::Warning);
             msgBox->setStandardButtons(QMessageBox::Ok);
             msgBox->exec();
@@ -472,7 +499,7 @@ static void MakeRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 		char* Cipher;
 		if(FinalKey != 0)
 		{
-			Cipher = new char[Length + (16 - (Length % 16))];
+			Cipher = new char[PaddedSize(Length)];
 			crypt.Encrypt(Original, Length, IV, FinalKey, Cipher);
 		}
 		else
@@ -487,7 +514,7 @@ static void MakeRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 			File.write(I, 24);																//Write the IV in base64
 			delete[] S;
 			delete[] I;
-			File.write(Cipher, Length + (16 - (Length % 16)));
+			File.write(Cipher, PaddedSize(Length));
 
 			memset(Original, 0, Length);
 			delete[] Cipher;

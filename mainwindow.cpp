@@ -14,8 +14,8 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
 
     CreateActions();
 
-	setTabOrder(ui->MyPublicLocLine, ui->MyPrivatePassLine);
-    setTabOrder(ui->MyPrivatePassLine, ui->MyPrivateLocLine);
+	setTabOrder(ui->MyPublicLocLine, ui->MyPrivateLocLine);
+    setTabOrder(ui->MyPrivateLocLine, ui->MyPrivatePassLine);
 
     ui->ConnectSettingsWidget->setHidden(true);
     ui->OptionsWidget->setHidden(true);
@@ -432,12 +432,19 @@ void MainWindow::Update()
     {
         ui->LoadMyKeysWidget->setHidden(true);
         ui->ConnectSettingsWidget->setHidden(true);
+		ui->OptionsWidget->setHidden(true);
+
         ui->ReceiveText->setHidden(false);
         ui->SendText->setHidden(false);
         ui->SendButton->setHidden(false);
+
         ui->SendText->setEnabled(true);
         ui->ReceiveText->setEnabled(true);
         ui->SendButton->setEnabled(true);
+
+		ui->SendText->activateWindow();
+		ui->SendText->setFocus();
+
         MyPTP.GConnected = true;
 		ui->StatusLabel->setText(QString("Connected!"));
     }
@@ -579,7 +586,7 @@ void MainWindow::on_PeerIPText_returnPressed()
 		MyPTP.ClntIP = ui->PeerIPText->text().toStdString();
         if(!MyPTP.Serv)
         {
-            int error = MyPTP.StartServer(1, true, string(""));
+            int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
             if(error)
             {
                 msgBox = new QMessageBox;
@@ -588,6 +595,8 @@ void MainWindow::on_PeerIPText_returnPressed()
                 msgBox->setStandardButtons(QMessageBox::Ok);
                 msgBox->exec();
             }
+			else
+				ui->StatusLabel->setText(QString("Attempting to connect to address..."));
         }
     }
 }

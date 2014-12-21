@@ -153,7 +153,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>The IPv4 Address Of The Peer...</string>
+      <string>The IPv4 Address Of The Peer</string>
      </property>
     </widget>
     <widget class="Line" name="ConnectLine">
@@ -386,7 +386,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>Send Public Key</string>
+      <string>Send Peer Public Key</string>
      </property>
      <property name="checked">
       <bool>true</bool>
@@ -546,14 +546,13 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>80</y>
+       <y>70</y>
        <width>481</width>
        <height>41</height>
       </rect>
      </property>
      <property name="text">
-      <string>Use RSA instead of ECC for asymmetric encryption (Please understand the
-ramifications before enabling)</string>
+      <string>Use RSA instead of ECC for asymmetric encryption</string>
      </property>
     </widget>
    </widget>
@@ -579,12 +578,12 @@ ramifications before enabling)</string>
     </property>
    </widget>
    <zorder>ConnectSettingsWidget</zorder>
+   <zorder>OptionsWidget</zorder>
    <zorder>LoadMyKeysWidget</zorder>
    <zorder>SendText</zorder>
    <zorder>SendButton</zorder>
    <zorder>StatusLabel</zorder>
    <zorder>ReceiveText</zorder>
-   <zorder>OptionsWidget</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">

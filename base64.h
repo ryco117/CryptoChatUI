@@ -33,7 +33,7 @@ static char* Base64Encode(const char* DataC, int len)
 	Result[newLen] = 0;
 
 	unsigned int k = 0;
-	for(int i = 0; i < newLen / 4; i++)
+	for(unsigned int i = 0; i < newLen / 4; i++)
 	{
 		k = (unsigned int)Data[i * 3] << 16;
 		k += (unsigned int)Data[i * 3 + 1] << 8;
@@ -61,7 +61,7 @@ static char* Base64Decode(const char* Data, int& len)
 {
 	char* LookUp = new char[strlen(Data)];
 	char r = 0;
-	for(int i = 0; i < strlen(Data); i++)
+	for(unsigned int i = 0; i < strlen(Data); i++)
 	{
 		if(Data[i] == '=')
 		{
@@ -91,7 +91,7 @@ static char* Base64Decode(const char* Data, int& len)
 	}
 
 	char* Result = new char[(strlen(Data) / 4) * 3 + 1];
-	for(int i = 0; i * 4 < strlen(Data); i++)
+	for(unsigned int i = 0; i * 4 < strlen(Data); i++)
 	{
 		int k = (unsigned int)LookUp[i * 4] << 18;
 		k += (unsigned int)LookUp[i * 4 + 1] << 12;

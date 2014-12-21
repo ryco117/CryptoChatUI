@@ -139,7 +139,7 @@ void PeerToPeer::ReceiveFile(string& Msg)
 	if(File.is_open())
 	{
 		char* Data = new char[Msg.length()];
-		unsigned int DataSize = 0;
+		int DataSize = 0;
 
 		DataSize = MyAES.Decrypt(Msg.c_str(), Msg.length(), FileIV, SymKey, Data);
 		if(DataSize == -1)
@@ -203,7 +203,7 @@ void PeerToPeer::SendMessage()
 	CipherMsg.push_back((char)(((__uint32_t)CipherSize >> 16) & 0xFF));
 	CipherMsg.push_back((char)(((__uint32_t)CipherSize >> 8) & 0xFF));
 	CipherMsg.push_back((char)((__uint32_t)CipherSize & 0xFF));
-	for(int i = 0; i < CipherSize; i++)
+	for(unsigned int i = 0; i < CipherSize; i++)
 		CipherMsg.push_back(Cipher[i]);
 
 	delete[] Cipher;
