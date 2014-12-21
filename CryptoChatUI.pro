@@ -40,6 +40,11 @@ QMAKE_CXXFLAGS += -Wno-unused-function
 QMAKE_CXXFLAGS += -Wno-unused-result
 QMAKE_CXXFLAGS += -Wno-maybe-uninitialized
 
+QMAKE_CXXFLAGS_RELEASE += -O
+QMAKE_CXXFLAGS_RELEASE += -O1
+QMAKE_CXXFLAGS_RELEASE += -O2
+QMAKE_CXXFLAGS_RELEASE += -O3
+
 #unix:!macx: LIBS += -L$$PWD/../../../../../../usr/local/lib/libscrypt.a
 unix:!macx: LIBS += /usr/local/lib/libscrypt.a
 
@@ -47,3 +52,5 @@ INCLUDEPATH += $$PWD/../../../../../../usr/local/include
 DEPENDPATH += $$PWD/../../../../../../usr/local/include
 
 unix:!macx: PRE_TARGETDEPS += $$PWD/../../../../../../usr/local/lib/libscrypt.a
+
+OBJECTS += AES-NI.o

@@ -12,6 +12,7 @@ void PeerToPeer::SendFilePt1()
 	Sending = 2;
     QString QFileName = QFileDialog::getOpenFileName(parent, QString("Open File"), "", QString("Files (*.*)"));
     string Name = QFileName.toStdString();
+	FileToSend = Name;
 
 	if(Name.empty())
 	{
@@ -123,6 +124,11 @@ void PeerToPeer::SendFilePt2()
 			ui->StatusLabel->setText(QString("Finished sending ") + QString(FileToSend.c_str()) + QString("."));
 			Sending = 0;	//file is done after this
 		}
+	}
+	else
+	{
+		Sending = 0;
+        ui->StatusLabel->setText(QString("Could not open ") + QString(FileToSend.c_str()) + QString(", file transfer cancelled."));
 	}
 	return;
 }
