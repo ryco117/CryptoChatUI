@@ -17,6 +17,7 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 	if((Serv = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) < 0)		//assign Serv to a file descriptor (socket) that uses IP addresses, TCP
 	{
 		close(Serv);
+		Serv = 0;
 		return -1;
 	}
 
@@ -30,6 +31,7 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 	if(bind(Serv, (struct sockaddr*)&socketInfo, sizeof(socketInfo)) < 0)	//Bind socketInfo to Serv
 	{
 		close(Serv);
+		Serv = 0;
 		return -2;
 	}
 	listen(Serv, MAX_CLIENTS);			//Listen for connections on Serv
@@ -114,7 +116,7 @@ int PeerToPeer::Update()
 
 					try
 					{
-						Import64(TempVS.substr(0, TempVS.find("|", 1)), ClientMod);	//Modulus in Base64 in first half
+						Import64(TempVS.substr(0, TempVS.find("|", 1)).c_str(), ClientMod);	//Modulus in Base64 in first half
 						//cout << "CM: " << Export64(ClientMod) << "\n\n";
 					}
 					catch(int e)
@@ -125,7 +127,7 @@ int PeerToPeer::Update()
 
 					try
 					{
-						Import64(TempVS.substr(TempVS.find("|", 1)+1), ClientE);	//Encryption key in Base64 in second half
+						Import64(TempVS.substr(TempVS.find("|", 1)+1).c_str(), ClientE);	//Encryption key in Base64 in second half
 						//cout << "CE: " << Export64(ClientE) << "\n\n";
 					}
 					catch(int e)
@@ -186,7 +188,7 @@ int PeerToPeer::Update()
 					mpz_class TempKey;
 					try
 					{
-						Import64(ClntKey, TempKey);
+						Import64(ClntKey.c_str(), TempKey);
 					}
 					catch(int e)
 					{
@@ -217,7 +219,7 @@ int PeerToPeer::Update()
 
 						try
 						{
-							Import64(Msg.substr(1, IV64_LEN), PeerIV);
+							Import64(Msg.substr(1, IV64_LEN).c_str(), PeerIV);
 							Msg = Msg.substr(1 + IV64_LEN + 4);
 						}
 						catch(int e)
@@ -236,7 +238,7 @@ int PeerToPeer::Update()
 
 						try
 						{
-							Import64(Msg.substr(1, IV64_LEN), PeerIV);
+							Import64(Msg.substr(1, IV64_LEN).c_str(), PeerIV);
 							Msg = Msg.substr(1 + IV64_LEN + 4);
 						}
 						catch(int e)
@@ -244,19 +246,18 @@ int PeerToPeer::Update()
 							ui->StatusLabel->setText(QString("The received file request is corrupt."));
 							continue;
 						}
-						string PlainText;
-						try
+
+						char* PlainText = new char[Msg.size() + 1];
+						PlainText[Msg.size()] = 0;
+						int PlainSize = MyAES.Decrypt(Msg.c_str(), Msg.size(), PeerIV, SymKey, PlainText);
+						if(PlainSize == -1)
 						{
-							PlainText = MyAES.Decrypt(SymKey, Msg, PeerIV);
-						}
-						catch(string e)
-						{
-							ui->StatusLabel->setText(QString(e.c_str()));
+							ui->StatusLabel->setText(QString("The received file request is corrupt."));
 							continue;
 						}
 
-						FileLength = __bswap_64(*((__uint64_t*)PlainText.c_str()));
-						FileLoc = PlainText.substr(8);
+						FileLength = __bswap_64(*((__uint64_t*)PlainText));
+						FileLoc = &PlainText[8];
 
                         char c;
                         QMessageBox* msgBox = new QMessageBox;
@@ -279,6 +280,9 @@ int PeerToPeer::Update()
                         Accept[0] = 2;
                         Accept[1] = c;
                         send(Client, Accept, RECV_SIZE, 0);
+
+						memset(PlainText, 0, nbytes);
+						delete[] PlainText;
 						delete[] Accept;
                     }
                     else if(buf[0] == 2)//&& Sending == 2 (removed for testing)
@@ -303,7 +307,7 @@ int PeerToPeer::Update()
 
 						try
 						{
-							Import64(Msg.substr(1, IV64_LEN), FileIV);
+							Import64(Msg.substr(1, IV64_LEN).c_str(), FileIV);
 							Msg = Msg.substr(1 + IV64_LEN + 4);
 						}
 						catch(int e)
@@ -328,10 +332,13 @@ int PeerToPeer::Update()
     {
 		if(UseRSA)
 		{
-			string MyValues = Export64(MyRSA.BigEncrypt(ClientMod, ClientE, SymKey));	//Encrypt The Symmetric Key With Their Public Key, base 64
+			mpz_class Values = MyRSA.BigEncrypt(ClientMod, ClientE, SymKey);	//Encrypt The Symmetric Key With Their Public Key, base 64
+			string MyValues = Export64(Values);
+			while(MyValues.size() < RECV_SIZE)
+				MyValues.push_back('\0');
 
 			//Send The Encrypted Symmetric Key
-			if(send(Client, MyValues.c_str(), MyValues.length(), 0) < 0)
+			if(send(Client, MyValues.c_str(), RECV_SIZE, 0) < 0)
 			{
 				perror("Connect failure");
 				return -5;
@@ -362,8 +369,11 @@ void PeerToPeer::TryConnect(bool SendPublic)
 				TempValues = Export64(MyE);
 				MyValues += TempValues;				//MyValues is equal to the string for the modulus + string for exp concatenated
 
+				while(MyValues.size() < MAX_RSA_SIZE)
+					MyValues.push_back('\0');
+
 				//Send My Public Key And My Modulus Because We Started The Connection
-				if(send(Client, MyValues.c_str(), MyValues.length(), 0) < 0)
+				if(send(Client, MyValues.c_str(), MAX_RSA_SIZE, 0) < 0)
 				{
 					perror("Connect failure");
 					return;

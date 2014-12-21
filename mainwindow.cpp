@@ -97,7 +97,7 @@ void MainWindow::ConnectSetup()
 
 void MainWindow::Disconnect()
 {
-    if(MyPTP.Serv)
+    if(MyPTP.Serv || MyPTP.Client)
 	{
         MyPTP.ContinueLoop = false;
 		ui->StatusLabel->setText(QString("Not Connected"));
@@ -217,9 +217,8 @@ void MainWindow::on_CreateKeysButton_clicked()
 			else
 				ECC_Curve25519_Create(MyPTP.CurveP, MyPTP.CurveK, *rng);
 		}
-        string Passwd = ui->MyPrivatePassLine->text().toStdString();
-		ui->MyPrivateLocLine->text().toStdWString();
 
+        const char* Passwd = ui->MyPrivatePassLine->text().toStdString().c_str();
 		char SaltStr[16] = {0};
 
 		mpz_class Salt = rng->get_z_bits(128);
@@ -228,13 +227,13 @@ void MainWindow::on_CreateKeysButton_clicked()
 
 		if(MyPTP.UseRSA)
 		{
-			MakeRSAPrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.MyD, &Passwd, SaltStr, TempIV);
+			MakeRSAPrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.MyD, Passwd, SaltStr, TempIV);
 			ui->MyPrivatePassLine->clear();
 			MakeRSAPublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.MyMod, MyPTP.MyE);
 		}
 		else
 		{
-			MakeCurvePrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.CurveK, &Passwd, SaltStr, TempIV);
+			MakeCurvePrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.CurveK, Passwd, SaltStr, TempIV);
 			ui->MyPrivatePassLine->clear();
 			MakeCurvePublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.CurveP);
 		}
@@ -300,10 +299,10 @@ void MainWindow::on_OpenPublicButton_clicked()
 void MainWindow::on_OpenPrivateButton_clicked()
 {
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Files (*.*)"));
-    string Pass = ui->PasswordLine->text().toStdString();
+    const char* Pass = ui->PasswordLine->text().toStdString().c_str();
 	if(MyPTP.UseRSA)
 	{
-		if(fileName.size() == 0 || !LoadRSAPrivateKey(fileName.toStdString(), Keys[1], &Pass))
+		if(fileName.size() == 0 || !LoadRSAPrivateKey(fileName.toStdString(), Keys[1], Pass))
 			Keys[1] = 0;
 		else
 		{
@@ -313,12 +312,12 @@ void MainWindow::on_OpenPrivateButton_clicked()
 	}
 	else
 	{
-		if(fileName.size() == 0 || !LoadCurvePrivateKey(fileName.toStdString(), MyPTP.CurveK, &Pass))
+		if(fileName.size() == 0 || !LoadCurvePrivateKey(fileName.toStdString(), MyPTP.CurveK, Pass))
 			memset((char*)MyPTP.CurveK, 0, 32);
 		else
 			ui->PrivateKeyLocLabel->setText(fileName);
 	}
-	ui->MyPrivatePassLine->clear();
+	ui->PasswordLine->clear();
 }
 void MainWindow::on_OKButton_clicked()
 {
@@ -410,6 +409,7 @@ void MainWindow::SendFileAction()
 
 void MainWindow::on_ConnectButton_clicked()
 {
+	MyPTP.ClntIP = ui->PeerIPText->text().toStdString();
     if(!MyPTP.Serv)
     {
         int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
@@ -451,31 +451,24 @@ void MainWindow::Update()
             for(int i = 0; i < MyPTP.GetMaxClients(); i++)
                 if(MyPTP.MySocks[i] > 0)
                     closesocket(MyPTP.MySocks[i]);
-            if(MyPTP.Client > 0)
-                closesocket(MyPTP.Client);
+			delete[] MyPTP.MySocks;
 
             closesocket(MyPTP.Serv);
+			closesocket(MyPTP.Client);
             MyPTP.Serv = 0;
             MyPTP.Client = 0;
-            MyPTP.Port = 5001;
+			MyPTP.ClntIP.clear();
             MyPTP.ClientMod = 0;
             MyPTP.ClientE = 0;
             MyPTP.Sending = 0;
             MyPTP.SentStuff = 0;
-            MyPTP.RNG = rng;
             MyPTP.GConnected = false;
             MyPTP.ConnectedClnt = false;
             MyPTP.ConnectedSrvr = false;
 			MyPTP.HasPub = false;
-			memset((char*)MyPTP.CurveP, 0, 32);
-			memset((char*)MyPTP.CurveK, 0, 32);
-			memset((char*)MyPTP.CurvePPeer, 0, 32);
-
-            GMPSeed(rng);
-            MyPTP.SymKey = rng->get_z_bits(256);
-            Keys[0] = 65537;
-            Keys[1] = 0;
-            Mod = 0;
+			mpz_xor(MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t());
+			MyPTP.SymKey = rng->get_z_bits(256);
+			memset(MyPTP.CurvePPeer, 0, 32);
 
             ui->ReceiveText->append(tr("Disconnected from peer."));
             ui->SendButton->setDisabled(true);
@@ -487,35 +480,27 @@ void MainWindow::Update()
 
         if(error < 0)
         {
-            for(int i = 0; i < MyPTP.GetMaxClients(); i++)
+			for(int i = 0; i < MyPTP.GetMaxClients(); i++)
                 if(MyPTP.MySocks[i] > 0)
                     closesocket(MyPTP.MySocks[i]);
-            if(MyPTP.Client > 0)
-                closesocket(MyPTP.Client);
+			delete[] MyPTP.MySocks;
 
             closesocket(MyPTP.Serv);
+			closesocket(MyPTP.Client);
             MyPTP.Serv = 0;
             MyPTP.Client = 0;
-            MyPTP.Port = 5001;
+			MyPTP.ClntIP.clear();
             MyPTP.ClientMod = 0;
             MyPTP.ClientE = 0;
             MyPTP.Sending = 0;
             MyPTP.SentStuff = 0;
-            MyPTP.RNG = rng;
             MyPTP.GConnected = false;
             MyPTP.ConnectedClnt = false;
             MyPTP.ConnectedSrvr = false;
 			MyPTP.HasPub = false;
-			memset((char*)MyPTP.CurveP, 0, 32);
-			memset((char*)MyPTP.CurveK, 0, 32);
-			memset((char*)MyPTP.CurvePPeer, 0, 32);
-
-
-            GMPSeed(rng);
-            MyPTP.SymKey = rng->get_z_bits(256);
-            Keys[0] = 65537;
-            Keys[1] = 0;
-            Mod = 0;
+			mpz_xor(MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t());
+			MyPTP.SymKey = rng->get_z_bits(256);
+			memset(MyPTP.CurvePPeer, 0, 32);
 
             ui->ReceiveText->append(tr("Disconnected from peer."));
             ui->SendButton->setDisabled(true);
@@ -582,8 +567,6 @@ void MainWindow::on_GenerateButton_clicked()
 
 void MainWindow::on_PeerIPText_textEdited(const QString &arg1)
 {
-	MyPTP.ClntIP = arg1.toStdString();
-
     if(!IsIP(arg1.toStdString()))
         ui->ConnectButton->setDisabled(true);
     else if((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0))	//For a proper Curve25519, k[31] can't be zero (bit 254 always set) and so this checks if we generated the curve
@@ -593,6 +576,7 @@ void MainWindow::on_PeerIPText_returnPressed()
 {
     if(ui->ConnectButton->isEnabled())
     {
+		MyPTP.ClntIP = ui->PeerIPText->text().toStdString();
         if(!MyPTP.Serv)
         {
             int error = MyPTP.StartServer(1, true, string(""));
@@ -610,6 +594,38 @@ void MainWindow::on_PeerIPText_returnPressed()
 
 MainWindow::~MainWindow()
 {
+	if(MyPTP.Serv)
+	{
+		for(int i = 0; i < MyPTP.GetMaxClients(); i++)
+		    if(MyPTP.MySocks[i] > 0)
+		        closesocket(MyPTP.MySocks[i]);
+		delete[] MyPTP.MySocks;
+
+	    closesocket(MyPTP.Serv);
+		closesocket(MyPTP.Client);
+	}
+
+    MyPTP.Serv = 0;
+    MyPTP.Client = 0;
+	MyPTP.ClntIP.clear();
+    MyPTP.ClientMod = 0;
+    MyPTP.ClientE = 0;
+    MyPTP.Sending = 0;
+    MyPTP.SentStuff = 0;
+    MyPTP.GConnected = false;
+    MyPTP.ConnectedClnt = false;
+    MyPTP.ConnectedSrvr = false;
+	MyPTP.HasPub = false;
+	mpz_xor(MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t());
+	memset(MyPTP.CurvePPeer, 0, 32);
+
+	memset(MyPTP.CurveP, 0, 32);
+	memset(MyPTP.CurveK, 0, 32);
+	mpz_xor(MyPTP.MyE.get_mpz_t(), MyPTP.MyE.get_mpz_t(), MyPTP.MyE.get_mpz_t());
+	mpz_xor(MyPTP.MyD.get_mpz_t(), MyPTP.MyD.get_mpz_t(), MyPTP.MyD.get_mpz_t());
+	mpz_xor(Keys[0].get_mpz_t(), Keys[0].get_mpz_t(), Keys[0].get_mpz_t());
+	mpz_xor(Keys[1].get_mpz_t(), Keys[1].get_mpz_t(), Keys[1].get_mpz_t());
+
     delete ui;
     delete rng;
 }

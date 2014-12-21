@@ -2,131 +2,185 @@
 #define AES_CPP
 #include "AES.h"
 
+extern "C"
+{
+	bool AESNI();
+	void EncryptNI(const char* Text, unsigned int size, char* IV, char* Key, char* Buffer);
+	int DecryptNI(const char* Cipher, unsigned int size, char* IV, char* Key, char* Buffer);
+}
+
 void ByteSplit(mpz_class& Number, mat4& Matrix);
 void ByteSplit(mpz_class& Number, mat4 Matrices[2]);
 
-string AES::Encrypt(mpz_class Key, string Msg, mpz_class& GMPIV)
+void AES::Encrypt(const char* Msg, unsigned int MsgLen, mpz_class& GMPIV, mpz_class& Key, char* CipherText)
 {
-    mat4 State = mat4((unsigned char)0);			//4x4 Matrix to go from original to cipher text
-    mat4 CipherKey[2] = {mat4((unsigned char)0)};	//2 4x4 Matrices to hold parts 1 & 2 of the 256 bit key
-    string CipherText = "";
+	if(AESNI())
+	{
+		size_t Size;
+		char* KeyP = new char[32];
+		char* IV = new char[16];
+		mpz_export(KeyP, &Size, 1, 32, 1, 0, Key.get_mpz_t());
+		mpz_export(IV, &Size, 1, 16, 1, 0, GMPIV.get_mpz_t());
 
-    ByteSplit(Key, CipherKey);
+		EncryptNI(Msg, MsgLen, IV, KeyP, CipherText);
+		memset(KeyP, 0, 32);
+		delete[] KeyP;
+		memset(IV, 0, 16);
+		delete[] IV;
+		return;
+	}
 
-    mat4 IV = mat4(0);
-    ByteSplit(GMPIV, IV);
+	mat4 State = mat4((unsigned char)0);											//4x4 Matrix to go from original to cipher text
+	mat4 CipherKey[2] = {mat4((unsigned char)0)};									//2 4x4 Matrices to hold parts 1 & 2 of the 256 bit key
 
-    mat4* Keys = new mat4[15];		//Will hold all 14 round keys and the initial (at pos 0)
-    Keys[0] = CipherKey[0];
-    Keys[1] = CipherKey[1];
+	ByteSplit(Key, CipherKey);
 
-    for(int i = 2; i < 15; i++)
-        Keys[i] = NextRound(Keys, i);
+	mat4 IV = mat4(0);
+	ByteSplit(GMPIV, IV);
 
-    unsigned char Pad = 16 - (Msg.length() % 16);
-    for(unsigned char i = 0; i < Pad; i++)
-        Msg.push_back(Pad);
+	mat4* Keys = new mat4[15];														//Will hold all 14 round keys and the initial (at pos 0)
+	Keys[0] = CipherKey[0];
+	Keys[1] = CipherKey[1];
 
-    for(unsigned int i = 0; (i * 16) < Msg.length(); i++)		//For every 16 chars, fill the state matrix again.
-    {
-        for(int col = 0; col < 4; col++)
-            for(int row = 0; row < 4; row++)
-                State.p[col][row] = (unsigned char)Msg[(i * 16) + (4*col) + row];	//i * 16 controls which block we're on, the rest moves through the block
+	for(int i = 2; i < 15; i++)
+		Keys[i] = NextRound(Keys, i);
 
-        State.AddRoundKey(IV);	//This adds more randomness to strings with repeating blocks
-        State.AddRoundKey(Keys[0]);
-        for(int j = 1; j < 14; j++)
-        {
-            State.SubBytes();
-            State.ShiftRows();
-            State.MixColumns();
-            State.AddRoundKey(Keys[j]);
-        }
+	unsigned char Pad = 16 - (MsgLen % 16);
+	char PaddedBlock[16];
+	memcpy(PaddedBlock, &Msg[MsgLen + Pad - 16], 16 - Pad);
+	memset(PaddedBlock + (16 - Pad), Pad, Pad);
 
-        State.SubBytes();
-        State.ShiftRows();
+	for(unsigned int i = 0; (i * 16) <= MsgLen; i++)									//For every 16 chars, fill the state matrix again.
+	{
+		if((MsgLen + Pad) - (16 * i) > 16)
+		{
+			for(int col = 0; col < 4; col++)
+				for(int row = 0; row < 4; row++)
+					State.p[col][row] = (unsigned char)Msg[(i * 16) + (4 * col) + row];	//i * 16 controls which block we're on, the rest moves through the block
+		}
+		else
+		{
+			for(int col = 0; col < 4; col++)
+				for(int row = 0; row < 4; row++)
+					State.p[col][row] = (unsigned char)PaddedBlock[(4 * col) + row];
+		}
 
-        State.AddRoundKey(Keys[14]);
+		State.AddRoundKey(IV);														//This adds more randomness to strings with repeating blocks
+		State.AddRoundKey(Keys[0]);
+		for(int j = 1; j < 14; j++)
+		{
+			State.SubBytes();
+			State.ShiftRows();
+			State.MixColumns();
+			State.AddRoundKey(Keys[j]);
+		}
 
-        for(int col = 0; col < 4; col++)
-            for(int row = 0; row < 4; row++)
-                CipherText.push_back(State.p[col][row]);
+		State.SubBytes();
+		State.ShiftRows();
 
-        IV = State;
-    }
-    delete[] Keys;
-    return CipherText;
+		State.AddRoundKey(Keys[14]);
+
+		for(int col = 0; col < 4; col++)
+			for(int row = 0; row < 4; row++)
+				CipherText[(i * 16) + (4 * col) + row] = State.p[col][row];
+
+		IV = State;
+	}
+	CipherKey[0] = 0;
+	CipherKey[1] = 0;
+	for(int i = 0; i < 15; i++)
+		Keys[i] = 0;
+
+	delete[] Keys;
+	return;
 }
 
 //The same as encrypt but in reverse...
-string AES::Decrypt(mpz_class Key, string Cipher, mpz_class& GMPIV)
+int AES::Decrypt(const char* Cipher, unsigned int CipherLen, mpz_class& GMPIV, mpz_class& Key, char* PlainText)
 {
-    mat4 State = mat4((unsigned char)0);
-    mat4 CipherKey[2] = {mat4((unsigned char)0)};
-    string PlainText = "";
+	if(AESNI())
+	{
+		size_t Size;
+		char* KeyP = new char[32];
+		char* IV = new char[16];
+		mpz_export(KeyP, &Size, 1, 32, 1, 0, Key.get_mpz_t());
+		mpz_export(IV, &Size, 1, 16, 1, 0, GMPIV.get_mpz_t());
 
-    ByteSplit(Key, CipherKey);
+		unsigned int l = DecryptNI(Cipher, CipherLen, IV, KeyP, PlainText);
+		memset(KeyP, 0, 32);
+		delete[] KeyP;
+		memset(IV, 0, 16);
+		delete[] IV;
+		return l;
+	}
 
-    mat4 IV = mat4(0);
-    ByteSplit(GMPIV, IV);
-    mat4 NextIV = mat4(0);
+	mat4 State = mat4((unsigned char)0);
+	mat4 CipherKey[2] = {mat4((unsigned char)0)};
 
-    mat4* Keys = new mat4[15];
-    Keys[0] = CipherKey[0];
-    Keys[1] = CipherKey[1];
-    for(int i = 2; i < 15; i++)
-        Keys[i] = NextRound(Keys, i);
+	ByteSplit(Key, CipherKey);
 
-    for(unsigned int i = 0; (i * 16) < Cipher.length(); i++)
-    {
-        for(int col = 0; col < 4; col++)
-            for(int row = 0; row < 4; row++)
-                State.p[col][row] = (unsigned char)Cipher[(i * 16) + (4*col) + row];
+	mat4 IV = mat4(0);
+	ByteSplit(GMPIV, IV);
+	mat4 NextIV = mat4(0);
 
-        NextIV = State;
-        State.AddRoundKey(Keys[14]);
-        State.RevShiftRows();
-        State.RevSubBytes();
+	mat4* Keys = new mat4[15];
+	Keys[0] = CipherKey[0];
+	Keys[1] = CipherKey[1];
+	for(int i = 2; i < 15; i++)
+		Keys[i] = NextRound(Keys, i);
 
-        for(int i = 13; i > 0; i--) {
-            State.AddRoundKey(Keys[i]);
-            State.RevMixColumns();
-            State.RevShiftRows();
-            State.RevSubBytes();
-        }
-        State.AddRoundKey(Keys[0]);
-        State.AddRoundKey(IV);
+	for(unsigned int i = 0; (i * 16) < CipherLen; i++)
+	{
+		for(int col = 0; col < 4; col++)
+			for(int row = 0; row < 4; row++)
+				State.p[col][row] = (unsigned char)Cipher[(i * 16) + (4 * col) + row];
 
-        for(int col = 0; col < 4; col++)
-        {
-            for(int row = 0; row < 4; row++)
-            {
-                PlainText.push_back(State.p[col][row]);
-            }
-        }
+		NextIV = State;
+		State.AddRoundKey(Keys[14]);
+		State.RevShiftRows();
+		State.RevSubBytes();
 
-        IV = NextIV;
-    }
-    int len = PlainText.length();
-    unsigned char NBytes = (unsigned char)PlainText[len-1];
-    bool BadPad = false;
+		for(int j = 13; j > 0; j--) {
+			State.AddRoundKey(Keys[j]);
+			State.RevMixColumns();
+			State.RevShiftRows();
+			State.RevSubBytes();
+		}
+		State.AddRoundKey(Keys[0]);
+		State.AddRoundKey(IV);
 
-    if(NBytes > 16 || NBytes == 0)
-        BadPad = true;
-    for(unsigned char i = 0; i < NBytes && !BadPad; i++)		//Time to do a simple integrity check
-    {
-        if((unsigned char)PlainText[len-1 - i] != NBytes)
-            BadPad = true;
-    }
-    if(BadPad == true)
-    {
-        throw string("Not proper PKCS7 padding");
-        return string("");
-    }
+		for(int col = 0; col < 4; col++)
+			for(int row = 0; row < 4; row++)
+				PlainText[(i * 16) + (4 * col) + row] = State.p[col][row];
 
-    PlainText.resize(len - NBytes);
-    delete[] Keys;
-    return PlainText;
+		IV = NextIV;
+	}
+	CipherKey[0] = 0;
+	CipherKey[1] = 0;
+	for(int i = 0; i < 15; i++)
+		Keys[i] = 0;
+
+	int len = CipherLen;
+
+	int NBytes = (char)PlainText[len-1];
+	bool BadPad = false;
+
+	if(NBytes > 16 || NBytes == 0)
+		BadPad = true;
+	for(int i = 0; i < NBytes && !BadPad; i++)										//Time to do a simple integrity check
+	{
+		if(PlainText[len-1 - i] != NBytes)
+			BadPad = true;
+	}
+	if(BadPad == true)
+	{
+		return -1;
+	}
+	len -= NBytes;
+	PlainText[len] = 0;
+
+	delete[] Keys;
+	return len;
 }
 
 inline void ByteSplit(mpz_class& Number, mat4& Matrix)

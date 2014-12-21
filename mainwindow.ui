@@ -411,7 +411,7 @@
       <property name="geometry">
        <rect>
         <x>120</x>
-        <y>110</y>
+        <y>80</y>
         <width>241</width>
         <height>25</height>
        </rect>
@@ -420,7 +420,7 @@
      <widget class="QLabel" name="label">
       <property name="geometry">
        <rect>
-        <x>6</x>
+        <x>10</x>
         <y>30</y>
         <width>111</width>
         <height>25</height>
@@ -433,8 +433,8 @@
      <widget class="QLabel" name="label_3">
       <property name="geometry">
        <rect>
-        <x>6</x>
-        <y>80</y>
+        <x>10</x>
+        <y>110</y>
         <width>111</width>
         <height>25</height>
        </rect>
@@ -446,8 +446,8 @@
      <widget class="QLabel" name="label_2">
       <property name="geometry">
        <rect>
-        <x>6</x>
-        <y>110</y>
+        <x>10</x>
+        <y>80</y>
         <width>111</width>
         <height>25</height>
        </rect>
@@ -470,7 +470,7 @@
       <property name="geometry">
        <rect>
         <x>120</x>
-        <y>80</y>
+        <y>110</y>
         <width>241</width>
         <height>25</height>
        </rect>
@@ -578,13 +578,13 @@ ramifications before enabling)</string>
      <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
     </property>
    </widget>
-   <zorder>OptionsWidget</zorder>
+   <zorder>ConnectSettingsWidget</zorder>
    <zorder>LoadMyKeysWidget</zorder>
    <zorder>SendText</zorder>
    <zorder>SendButton</zorder>
    <zorder>StatusLabel</zorder>
    <zorder>ReceiveText</zorder>
-   <zorder>ConnectSettingsWidget</zorder>
+   <zorder>OptionsWidget</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
