@@ -40,8 +40,57 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 	Client = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);			//assign Client to a file descriptor (socket) that uses IP addresses, TCP
 	memset(&socketInfo, 0, sizeof(socketInfo));					//Clear socketInfo to be filled with client stuff
 	socketInfo.sin_family = AF_INET;							//uses IP addresses
-	socketInfo.sin_addr.s_addr = inet_addr(ClntIP.c_str());		//connects to the ip we specified
-	socketInfo.sin_port = htons(Port);							//uses port Port
+	if(!ProxyIP.empty())
+	{
+		socketInfo.sin_addr.s_addr = inet_addr(ProxyIP.c_str());
+		socketInfo.sin_port = htons(ProxyPort);
+
+		if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in)) < 0)
+		{
+			perror("Could not connect to proxy");
+			close(Client);
+			return -2;
+		}
+
+		//SOCKS4 - Assuming no userID is required. Could be modified if becomes relevant
+		char ReqField[9];
+		ReqField[0] = 0x04;
+		ReqField[1] = 0x01;
+		uint16_t ServerPort = htons(Port);
+		memcpy(&ReqField[2], &ServerPort, 2);
+		uint32_t ClntAddr = inet_addr(ClntIP.c_str());
+		memcpy(&ReqField[4], &ClntAddr, 4);
+		ReqField[8] = 0;
+
+		send(Client, ReqField, 9, 0);
+
+		char RecvField[8];
+		int nbytes = recv(Client, RecvField, 8, 0);
+		if(nbytes <= 0)
+		{
+			perror("recv");
+			close(Client);
+			return -3;
+		}
+
+		if(RecvField[0] != 0)
+		{
+			cout << "Bad response, exiting\n";
+			close(Client);
+			return -4;
+		}
+		if(RecvField[1] != 0x5a)
+		{
+			printf("Proxy rejected connection with code %X, exiting\n", (unsigned int)RecvField[1]);
+			close(Client);
+			return -5;
+		}
+	}
+	else
+	{
+		socketInfo.sin_addr.s_addr = inet_addr(ClntIP.c_str());		//connects to the ip we specified
+		socketInfo.sin_port = htons(Port);							//uses port Port
+	}
 	
 	//		**-FILE DESCRIPTORS-**
 	FD_ZERO(&master);											//clear data in master

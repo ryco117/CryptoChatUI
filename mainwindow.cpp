@@ -412,6 +412,19 @@ void MainWindow::on_ConnectButton_clicked()
 	MyPTP.ClntIP = ui->PeerIPText->text().toStdString();
     if(!MyPTP.Serv)
     {
+		string ProxyAddr = ui->ProxyAddrLine->text().toStdString();
+		//if set a proxy	  but	address doesn't contain colon	  or	not proper IPv4
+		if(!ProxyAddr.empty() && (ProxyAddr.find(":") == string::npos || !IsIP(ProxyAddr.substr(0, ProxyAddr.find(":")))))
+		{
+			ui->StatusLabel->setText(QString("Improper proxy address. Format is X.X.X.X:Y for IPv4 and port"));
+			return;
+		}
+		if(!ProxyAddr.empty())
+		{
+			MyPTP.ProxyIP = ProxyAddr.substr(0, ProxyAddr.find(":"));
+			MyPTP.ProxyPort = atoi(ProxyAddr.substr(ProxyAddr.find(":") + 1).c_str());
+		}
+
         int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
         if(error)
         {
@@ -586,6 +599,19 @@ void MainWindow::on_PeerIPText_returnPressed()
 		MyPTP.ClntIP = ui->PeerIPText->text().toStdString();
         if(!MyPTP.Serv)
         {
+			string ProxyAddr = ui->ProxyAddrLine->text().toStdString();
+			//if set a proxy	  but	address doesn't contain colon	  or	not proper IPv4
+			if(!ProxyAddr.empty() && (ProxyAddr.find(":") == string::npos || !IsIP(ProxyAddr.substr(0, ProxyAddr.find(":")))))
+			{
+				ui->StatusLabel->setText(QString("Improper proxy address. Format is X.X.X.X:Y for IPv4 and port"));
+				return;
+			}
+			if(!ProxyAddr.empty())
+			{
+				MyPTP.ProxyIP = ProxyAddr.substr(0, ProxyAddr.find(":"));
+				MyPTP.ProxyPort = atoi(ProxyAddr.substr(ProxyAddr.find(":") + 1).c_str());
+			}
+
             int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
             if(error)
             {
