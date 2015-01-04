@@ -8,12 +8,24 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
     ui->setupUi(this);
     setWindowTitle("CryptoChatUI");
 
-    timer.setInterval(0);
+    timer.setInterval(10);
     timer.start();
     connect(&timer, SIGNAL(timeout()), this, SLOT(Update()));
 
     CreateActions();
 
+	//Load Keys
+	setTabOrder(ui->OpenPublicButton, ui->PasswordLine);
+	setTabOrder(ui->PasswordLine, ui->OpenPrivateButton);
+
+	//Options
+	setTabOrder(ui->UseRSACB, ui->SendPublicCB);
+	setTabOrder(ui->SendPublicCB, ui->BindPortLine);
+	setTabOrder(ui->BindPortLine, ui->PeerPortLine);
+	setTabOrder(ui->PeerPortLine, ui->SavePublicCB);
+	setTabOrder(ui->SavePublicCB, ui->PeerPublicLocLine);
+	setTabOrder(ui->PeerPublicLocLine, ui->ProxyAddrLine);
+	setTabOrder(ui->ProxyAddrLine, ui->MyPublicLocLine);
 	setTabOrder(ui->MyPublicLocLine, ui->MyPrivateLocLine);
     setTabOrder(ui->MyPrivateLocLine, ui->MyPrivatePassLine);
 
@@ -33,7 +45,8 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
     MyPTP.parent = this;
     MyPTP.Serv = 0;
     MyPTP.Client = 0;
-    MyPTP.Port = 5001;
+    MyPTP.PeerPort = 5001;
+	MyPTP.BindPort = 5001;
     MyPTP.ClientMod = 0;
     MyPTP.ClientE = 0;
     MyPTP.Sending = 0;
@@ -60,6 +73,7 @@ void MainWindow::CreateActions()
     connect(ui->actionLoad_Peer_Public_Key, SIGNAL(triggered()), this, SLOT(LoadPeerPublicKey()));
     connect(ui->actionHelp, SIGNAL(triggered()), this, SLOT(Help()));
     connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(About()));
+	connect(ui->actionLicense, SIGNAL(triggered()), this, SLOT(License()));
 }
 
 void MainWindow::SafeExit()
@@ -81,7 +95,7 @@ void MainWindow::ConnectSetup()
 	if((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0))
 	{
 		ui->PublicKeyInfoLabel->setText(tr("Public/private keys are set."));
-		if(IsIP(ui->PeerIPText->text().toStdString()))
+		if(!ui->PeerIPText->text().isEmpty())
 		    ui->ConnectButton->setEnabled(true);
 	}
 	else
@@ -182,7 +196,8 @@ void MainWindow::OptionsSetup()
     ui->SendText->setHidden(!shown);
     ui->SendButton->setHidden(!shown);
 
-    ui->PortLine->setText(QString::number(MyPTP.Port));
+    ui->PeerPortLine->setText(QString::number(MyPTP.PeerPort));
+	ui->BindPortLine->setText(QString::number(MyPTP.BindPort));
 }
 void MainWindow::on_SavePublicCB_toggled(bool checked)
 {
@@ -250,12 +265,19 @@ void MainWindow::on_CreateKeysButton_clicked()
     }
 	return;
 }
-void MainWindow::on_PortLine_textEdited(const QString &arg1)
+void MainWindow::on_PeerPortLine_textEdited(const QString &arg1)
 {
     bool b;
     int i = arg1.toInt(&b);
     if(b)
-        MyPTP.Port = i;
+        MyPTP.PeerPort = i;
+}
+void MainWindow::on_BindPortLine_textEdited(const QString &arg1)
+{
+    bool b;
+    int i = arg1.toInt(&b);
+    if(b)
+        MyPTP.BindPort = i;
 }
 
 void MainWindow::LoadMyKeys()
@@ -270,7 +292,7 @@ void MainWindow::LoadMyKeys()
 }
 void MainWindow::on_OpenPublicButton_clicked()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Files (*.*)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("All Files (*)"));
 
 	if(MyPTP.UseRSA)
 	{
@@ -298,7 +320,7 @@ void MainWindow::on_OpenPublicButton_clicked()
 }
 void MainWindow::on_OpenPrivateButton_clicked()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Files (*.*)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("All Files (*)"));
     const char* Pass = ui->PasswordLine->text().toStdString().c_str();
 	if(MyPTP.UseRSA)
 	{
@@ -330,7 +352,7 @@ void MainWindow::on_OKButton_clicked()
 
 void MainWindow::LoadPeerPublicKey()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Files (*.*)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("All Files (*)"));
     if(MyPTP.UseRSA)
 	{
 		if(fileName.size() == 0 || !LoadRSAPublicKey(fileName.toStdString(), MyPTP.ClientMod, MyPTP.ClientE))
@@ -392,6 +414,30 @@ void MainWindow::About()
     delete msgBox;
 }
 
+void MainWindow::License()
+{
+    msgBox = new QMessageBox;
+    msgBox->setText(tr("Copyright (C) 2014  Ryan Andersen<br/>\
+<br/>\
+				       This program is free software: you can redistribute it and/or modify<br/>\
+				       it under the terms of the GNU General Public License as published by<br/>\
+				       the Free Software Foundation, either version 3 of the License, or<br/>\
+				       (at your option) any later version.<br/>\
+<br/>\
+				       This program is distributed in the hope that it will be useful,<br/>\
+				       but WITHOUT ANY WARRANTY; without even the implied warranty of<br/>\
+				       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the<br/>\
+				       GNU General Public License for more details.<br/>\
+<br/>\
+				       You should have received a copy of the GNU General Public License<br/>\
+				       along with this program.  If not, see <a href=\"http://www.gnu.org/licenses/\">&lt;http://www.gnu.org/licenses/&gt;</a>."));
+	msgBox->setTextFormat(Qt::RichText);
+    msgBox->setIcon(QMessageBox::Information);
+    msgBox->setStandardButtons(QMessageBox::Ok);
+    msgBox->exec();
+    delete msgBox;
+}
+
 void MainWindow::SendFileAction()
 {
     if(MyPTP.GConnected)
@@ -409,36 +455,9 @@ void MainWindow::SendFileAction()
 
 void MainWindow::on_ConnectButton_clicked()
 {
-	MyPTP.ClntIP = ui->PeerIPText->text().toStdString();
-    if(!MyPTP.Serv)
-    {
-		string ProxyAddr = ui->ProxyAddrLine->text().toStdString();
-		//if set a proxy	  but	address doesn't contain colon	  or	not proper IPv4
-		if(!ProxyAddr.empty() && (ProxyAddr.find(":") == string::npos || !IsIP(ProxyAddr.substr(0, ProxyAddr.find(":")))))
-		{
-			ui->StatusLabel->setText(QString("Improper proxy address. Format is X.X.X.X:Y for IPv4 and port"));
-			return;
-		}
-		if(!ProxyAddr.empty())
-		{
-			MyPTP.ProxyIP = ProxyAddr.substr(0, ProxyAddr.find(":"));
-			MyPTP.ProxyPort = atoi(ProxyAddr.substr(ProxyAddr.find(":") + 1).c_str());
-		}
-
-        int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
-        if(error)
-        {
-            msgBox = new QMessageBox;
-            msgBox->setText(QString("Could not start server, error code ") + QString::number(error));
-            msgBox->setIcon(QMessageBox::Warning);
-            msgBox->setStandardButtons(QMessageBox::Ok);
-            msgBox->exec();
-			ui->StatusLabel->setText(QString("Not Connected"));
-        }
-		else
-			ui->StatusLabel->setText(QString("Attempting to connect to address..."));
-    }
+	StartConnection();
 }
+
 void MainWindow::Update()
 {
     if(!MyPTP.GConnected && MyPTP.SentStuff == 3)
@@ -477,7 +496,7 @@ void MainWindow::Update()
 			closesocket(MyPTP.Client);
             MyPTP.Serv = 0;
             MyPTP.Client = 0;
-			MyPTP.ClntIP.clear();
+			MyPTP.ClntAddr.clear();
             MyPTP.ClientMod = 0;
             MyPTP.ClientE = 0;
             MyPTP.Sending = 0;
@@ -509,7 +528,7 @@ void MainWindow::Update()
 			closesocket(MyPTP.Client);
             MyPTP.Serv = 0;
             MyPTP.Client = 0;
-			MyPTP.ClntIP.clear();
+			MyPTP.ClntAddr.clear();
             MyPTP.ClientMod = 0;
             MyPTP.ClientE = 0;
             MyPTP.Sending = 0;
@@ -581,50 +600,66 @@ void MainWindow::on_GenerateButton_clicked()
 	}
 	ui->PublicKeyInfoLabel->setText(tr("Public/private keys are set."));
 	ui->StatusLabel->setText(QString("Private/Public keys created!"));
-	if(IsIP(ui->PeerIPText->text().toStdString()))
+	if(!ui->PeerIPText->text().isEmpty())
         ui->ConnectButton->setEnabled(true);
 }
 
 void MainWindow::on_PeerIPText_textEdited(const QString &arg1)
 {
-    if(!IsIP(arg1.toStdString()))
-        ui->ConnectButton->setDisabled(true);
-    else if((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0))	//For a proper Curve25519, k[31] can't be zero (bit 254 always set) and so this checks if we generated the curve
-        ui->ConnectButton->setEnabled(true);
+	if(((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0)) && !arg1.isEmpty())	//For a proper Curve25519, k[31] can't be zero (bit 254 always set) and so this checks if we generated the curve
+		ui->ConnectButton->setEnabled(true);
+	else
+		ui->ConnectButton->setDisabled(true);
 }
 void MainWindow::on_PeerIPText_returnPressed()
 {
     if(ui->ConnectButton->isEnabled())
     {
-		MyPTP.ClntIP = ui->PeerIPText->text().toStdString();
-        if(!MyPTP.Serv)
-        {
-			string ProxyAddr = ui->ProxyAddrLine->text().toStdString();
-			//if set a proxy	  but	address doesn't contain colon	  or	not proper IPv4
-			if(!ProxyAddr.empty() && (ProxyAddr.find(":") == string::npos || !IsIP(ProxyAddr.substr(0, ProxyAddr.find(":")))))
-			{
-				ui->StatusLabel->setText(QString("Improper proxy address. Format is X.X.X.X:Y for IPv4 and port"));
-				return;
-			}
-			if(!ProxyAddr.empty())
-			{
-				MyPTP.ProxyIP = ProxyAddr.substr(0, ProxyAddr.find(":"));
-				MyPTP.ProxyPort = atoi(ProxyAddr.substr(ProxyAddr.find(":") + 1).c_str());
-			}
-
-            int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
-            if(error)
-            {
-                msgBox = new QMessageBox;
-                msgBox->setText(QString("Could not start server, error code ") + error);
-                msgBox->setIcon(QMessageBox::Warning);
-                msgBox->setStandardButtons(QMessageBox::Ok);
-                msgBox->exec();
-            }
-			else
-				ui->StatusLabel->setText(QString("Attempting to connect to address..."));
-        }
+		StartConnection();
     }
+	return;
+}
+
+void MainWindow::StartConnection()
+{
+	MyPTP.ClntAddr = ui->PeerIPText->text().toStdString();
+    if(!MyPTP.Serv)
+    {
+		string ProxyAddr = ui->ProxyAddrLine->text().toStdString();
+
+		//if set a proxy	  but	address doesn't contain colon
+		if(!ProxyAddr.empty() && (ProxyAddr.find(":") == string::npos))
+		{
+			ui->StatusLabel->setText(QString("Improper proxy address"));
+			return;
+		}
+		if(!ProxyAddr.empty())
+		{
+			MyPTP.ProxyAddr = ProxyAddr.substr(0, ProxyAddr.find(":"));
+			MyPTP.ProxyPort = atoi(ProxyAddr.substr(ProxyAddr.find(":") + 1).c_str());
+			MyPTP.ProxyRequest = false;
+		}
+		else
+		{
+			MyPTP.ProxyAddr.clear();
+			MyPTP.ProxyPort = 0;
+		}
+
+        int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
+        if(error)
+        {
+            msgBox = new QMessageBox;
+            msgBox->setText(QString("Could not start server, error code ") + QString::number(error));
+            msgBox->setIcon(QMessageBox::Warning);
+            msgBox->setStandardButtons(QMessageBox::Ok);
+            msgBox->exec();
+			delete msgBox;
+			ui->StatusLabel->setText(QString("Not Connected"));
+        }
+		else
+			ui->StatusLabel->setText(QString("Attempting to connect to address..."));
+    }
+	return;
 }
 
 MainWindow::~MainWindow()
@@ -642,7 +677,7 @@ MainWindow::~MainWindow()
 
     MyPTP.Serv = 0;
     MyPTP.Client = 0;
-	MyPTP.ClntIP.clear();
+	MyPTP.ClntAddr.clear();
     MyPTP.ClientMod = 0;
     MyPTP.ClientE = 0;
     MyPTP.Sending = 0;

@@ -24,7 +24,7 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 	memset(&socketInfo, 0, sizeof(socketInfo));						//Clear data inside socketInfo to be filled with server stuff
 	socketInfo.sin_family = AF_INET;								//Use IP addresses
 	socketInfo.sin_addr.s_addr = htonl(INADDR_ANY);					//Allow connection from anybody
-	socketInfo.sin_port = htons(Port);								//Use port Port
+	socketInfo.sin_port = htons(BindPort);								//Use port BindPort
 	
 	int optval = 1;
 	setsockopt(Serv, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);		//Remove Bind already used error
@@ -35,68 +35,12 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 		return -2;
 	}
 	listen(Serv, MAX_CLIENTS);			//Listen for connections on Serv
-	
-	//		**-CLIENT-**	
-	Client = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);			//assign Client to a file descriptor (socket) that uses IP addresses, TCP
-	memset(&socketInfo, 0, sizeof(socketInfo));					//Clear socketInfo to be filled with client stuff
-	socketInfo.sin_family = AF_INET;							//uses IP addresses
-	if(!ProxyIP.empty())
-	{
-		socketInfo.sin_addr.s_addr = inet_addr(ProxyIP.c_str());
-		socketInfo.sin_port = htons(ProxyPort);
 
-		if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in)) < 0)
-		{
-			perror("Could not connect to proxy");
-			close(Client);
-			return -2;
-		}
-
-		//SOCKS4 - Assuming no userID is required. Could be modified if becomes relevant
-		char ReqField[9];
-		ReqField[0] = 0x04;
-		ReqField[1] = 0x01;
-		uint16_t ServerPort = htons(Port);
-		memcpy(&ReqField[2], &ServerPort, 2);
-		uint32_t ClntAddr = inet_addr(ClntIP.c_str());
-		memcpy(&ReqField[4], &ClntAddr, 4);
-		ReqField[8] = 0;
-
-		send(Client, ReqField, 9, 0);
-
-		char RecvField[8];
-		int nbytes = recv(Client, RecvField, 8, 0);
-		if(nbytes <= 0)
-		{
-			perror("recv");
-			close(Client);
-			return -3;
-		}
-
-		if(RecvField[0] != 0)
-		{
-			cout << "Bad response, exiting\n";
-			close(Client);
-			return -4;
-		}
-		if(RecvField[1] != 0x5a)
-		{
-			printf("Proxy rejected connection with code %X, exiting\n", (unsigned int)RecvField[1]);
-			close(Client);
-			return -5;
-		}
-	}
-	else
-	{
-		socketInfo.sin_addr.s_addr = inet_addr(ClntIP.c_str());		//connects to the ip we specified
-		socketInfo.sin_port = htons(Port);							//uses port Port
-	}
-	
 	//		**-FILE DESCRIPTORS-**
 	FD_ZERO(&master);											//clear data in master
 	FD_SET(Serv, &master);										//set master to check file descriptor Serv
 	read_fds = master;											//the read_fds will check the same FDs as master
-	
+
 	MySocks = new int[MAX_CLIENTS + 1];							//MySocks is a new array of sockets (ints) as long the max connections + 1
 	MySocks[0] = Serv;											//first socket is the server FD
     for(int i = 1; i < MAX_CLIENTS + 1; i++)					//assign all the empty ones to -1 (so we know they haven't been assigned a socket)
@@ -104,6 +48,62 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
     zero.tv_sec = 0;
     zero.tv_usec = 50;											//called zero for legacy reasons... assign timeval 50 milliseconds
 	fdmax = Serv;												//fdmax is the highest file descriptor to check (because they are just ints)
+	
+	//		**-CLIENT-**	
+	Client = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);			//assign Client to a file descriptor (socket) that uses IP addresses, TCP
+	memset(&socketInfo, 0, sizeof(socketInfo));					//Clear socketInfo to be filled with client stuff
+	socketInfo.sin_family = AF_INET;							//uses IP addresses
+	if(!ProxyAddr.empty())
+	{
+		if(IsIP(ProxyAddr))
+			socketInfo.sin_addr.s_addr = inet_addr(ProxyAddr.c_str());
+		else
+		{
+			socketInfo.sin_addr.s_addr = Resolve(ProxyAddr);
+			if(socketInfo.sin_addr.s_addr == 0)
+			{
+				ui->StatusLabel->setText(QString("Couldn't resolve proxy address"));
+				close(Client);
+				Client = 0;
+				close(Serv);
+				Serv = 0;
+				return -4;
+			}
+		}
+		socketInfo.sin_port = htons(ProxyPort);
+
+		if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in)) < 0)
+		{
+			ui->StatusLabel->setText(QString("Could not connect to proxy"));
+			close(Client);
+			Client = 0;
+			close(Serv);
+			Serv = 0;
+			return -3;
+		}
+		FD_SET(Client, &master);
+		if(Client > fdmax)
+			fdmax = Client;
+	}
+	else
+	{
+		if(IsIP(ClntAddr))
+			socketInfo.sin_addr.s_addr = inet_addr(ClntAddr.c_str());
+		else
+		{
+			socketInfo.sin_addr.s_addr = Resolve(ClntAddr);
+			if(socketInfo.sin_addr.s_addr == 0)
+			{
+				ui->StatusLabel->setText(QString("Couldn't resolve peer address"));
+				close(Client);
+				Client = 0;
+				close(Serv);
+				Serv = 0;
+				return -4;
+			}
+		}
+		socketInfo.sin_port = htons(PeerPort);							//uses port PeerPort
+	}
 	
 	//Progress checks
 	SentStuff = 0;
@@ -136,15 +136,19 @@ int PeerToPeer::Update()
             if(i == 0)											//if i = 0, then based on line 52, we know that we are looking at data on the Serv socket... This means new connection!!
             {
                 if((newSocket = accept(Serv, NULL, NULL)) < 0)	//assign socket newSocket to the person we are accepting on Serv
-                {
-                    close(Serv);								//unless it errors
-                    perror("Accept");
+                {												//unless it errors
+					if(ConnectedClnt)
+						close(Client);
+					Client = 0;
+					close(Serv);
+					Serv = 0;
+					ui->StatusLabel->setText(QString("Error accepting connection"));
                     return -4;
                 }
                 ConnectedSrvr = true;							//Passed All Tests, We Can Safely Say We Connected
 
                 FD_SET(newSocket, &master);						//Add the newSocket FD to master set
-                for(unsigned int j = 1; j < MaxClients + 1; j++)	//assign an unassigned MySocks to newSocket
+                for(unsigned int j = 1; j < MaxClients + 1; j++)//assign an unassigned MySocks to newSocket
                 {
                     if(MySocks[j] == -1)						//Not in use
                     {
@@ -154,11 +158,24 @@ int PeerToPeer::Update()
                         break;
                     }
                 }
-                if(UseRSA && !HasPub)							//Check if we haven't already assigned the client's public key through an arg.
+				if(HasPub && !UseRSA)
+				{
+					unsigned char SaltStr[16] = {(unsigned char)'\x43',(unsigned char)'\x65',(unsigned char)'\x12',(unsigned char)'\x94',(unsigned char)'\x83',(unsigned char)'\x05',(unsigned char)'\x73',(unsigned char)'\x37',\
+												 (unsigned char)'\x65',(unsigned char)'\x93',(unsigned char)'\x85',(unsigned char)'\x64',(unsigned char)'\x51',(unsigned char)'\x65',(unsigned char)'\x64',(unsigned char)'\x94'};
+					unsigned char Hash[32] = {0};
+
+					curve25519_donna(SharedKey, CurveK, CurvePPeer);
+					libscrypt_scrypt(SharedKey, 32, SaltStr, 16, 16384, 14, 2, Hash, 32); //Use agreed upon salt
+					mpz_import(SymKey.get_mpz_t(), 32, 1, 1, 0, 0, Hash);
+				}
+            }
+			else if(!HasPub)
+			{
+				if(UseRSA)
                 {
 					char* TempVA = new char[MAX_RSA_SIZE];
 					string TempVS;
-					nbytes = recvr(newSocket, TempVA, MAX_RSA_SIZE, 0);
+					nbytes = recvr(MySocks[i], TempVA, MAX_RSA_SIZE, 0);
 
 					for(unsigned int i = 0; i < (unsigned int)nbytes; i++)
 						TempVS.push_back(TempVA[i]);
@@ -166,7 +183,6 @@ int PeerToPeer::Update()
 					try
 					{
 						Import64(TempVS.substr(0, TempVS.find("|", 1)).c_str(), ClientMod);	//Modulus in Base64 in first half
-						//cout << "CM: " << Export64(ClientMod) << "\n\n";
 					}
 					catch(int e)
 					{
@@ -177,7 +193,6 @@ int PeerToPeer::Update()
 					try
 					{
 						Import64(TempVS.substr(TempVS.find("|", 1)+1).c_str(), ClientE);	//Encryption key in Base64 in second half
-						//cout << "CE: " << Export64(ClientE) << "\n\n";
 					}
 					catch(int e)
 					{
@@ -189,14 +204,12 @@ int PeerToPeer::Update()
 
 					delete[] TempVA;
                 }
-				else if(!UseRSA)
+				else
 				{
-					if(!HasPub)
-					{
-						nbytes = recvr(newSocket, (char*)CurvePPeer, 32, 0);
-						if(!SavePub.empty())
-	                        MakeCurvePublicKey(SavePub, CurvePPeer);
-					}
+					nbytes = recvr(MySocks[i], (char*)CurvePPeer, 32, 0);
+					if(!SavePub.empty())
+						MakeCurvePublicKey(SavePub, CurvePPeer);
+
 					unsigned char SaltStr[16] = {(unsigned char)'\x43',(unsigned char)'\x65',(unsigned char)'\x12',(unsigned char)'\x94',(unsigned char)'\x83',(unsigned char)'\x05',(unsigned char)'\x73',(unsigned char)'\x37',\
 												 (unsigned char)'\x65',(unsigned char)'\x93',(unsigned char)'\x85',(unsigned char)'\x64',(unsigned char)'\x51',(unsigned char)'\x65',(unsigned char)'\x64',(unsigned char)'\x94'};
 					unsigned char Hash[32] = {0};
@@ -206,7 +219,7 @@ int PeerToPeer::Update()
 					mpz_import(SymKey.get_mpz_t(), 32, 1, 1, 0, 0, Hash);
 				}
 				HasPub = true;
-            }
+			}
             else
             {
 				char buf[RECV_SIZE];	//RECV_SIZE is the max possible incoming data (file part with iv, leading byte, and data size)
@@ -219,12 +232,12 @@ int PeerToPeer::Update()
                     if(nbytes == 0)
                     {
                         // connection closed
-                        ui->ReceiveText->append(QString("Server: socket ") + QString::number(MySocks[i]) + QString(" hung up"));
+                        ui->ReceiveText->append(QString("Peer ") + QString::number(i) + QString(" disconnected"));
                         ContinueLoop = false;
                         return 0;
                     }
                     else
-						perror("Recv");
+						ui->ReceiveText->append(QString("Disconnected from peer ") + QString::number(i) + QString(" with error ") + QString::number(nbytes));
 
                     close(MySocks[i]); // bye!
                     MySocks[i] = -1;
@@ -273,7 +286,7 @@ int PeerToPeer::Update()
 						}
 						catch(int e)
 						{
-							ui->StatusLabel->setText(QString("The received message is corrupt."));
+							ui->StatusLabel->setText(QString("The received message is corrupt"));
 							continue;
 						}
 
@@ -292,7 +305,7 @@ int PeerToPeer::Update()
 						}
 						catch(int e)
 						{
-							ui->StatusLabel->setText(QString("The received file request is corrupt."));
+							ui->StatusLabel->setText(QString("The received file request is corrupt"));
 							continue;
 						}
 
@@ -301,7 +314,7 @@ int PeerToPeer::Update()
 						int PlainSize = MyAES.Decrypt(Msg.c_str(), Msg.size(), PeerIV, SymKey, PlainText);
 						if(PlainSize == -1)
 						{
-							ui->StatusLabel->setText(QString("The received file request is corrupt."));
+							ui->StatusLabel->setText(QString("The received file request is corrupt"));
 							continue;
 						}
 
@@ -340,12 +353,12 @@ int PeerToPeer::Update()
                         {
                             Sending = 3;
                             FilePos = 0;
-							ui->StatusLabel->setText(QString("Peer accepted file."));
+							ui->StatusLabel->setText(QString("Peer accepted file"));
                         }
                         else
                         {
                             Sending = 0;
-                            ui->StatusLabel->setText(QString("Peer rejected file. The transfer was cancelled."));
+                            ui->StatusLabel->setText(QString("Peer rejected file. The transfer was cancelled"));
                         }
                     }
                     else if(buf[0] == 3)//&& Sending == -1 (removed for testing)
@@ -361,7 +374,7 @@ int PeerToPeer::Update()
 						}
 						catch(int e)
 						{
-							ui->StatusLabel->setText(QString("The received file piece is corrupt."));
+							ui->StatusLabel->setText(QString("The received file piece is bad"));
 							Sending = 0;
 							continue;
 						}
@@ -373,26 +386,27 @@ int PeerToPeer::Update()
     }//End For Loop for sockets
     if(Sending == 3)
         SendFilePt2();
-    if(!ConnectedClnt)					//Not conected yet?!?
+    if(!ConnectedClnt)															//Not connected yet?!?
     {
-		TryConnect(SendPub);			//Lets try to change that
+		TryConnect(SendPub);													//Lets try to change that
     }
-    if(SentStuff == 1 && HasPub)		//We have established a connection and we have their keys!
+    if(SentStuff == 1 && HasPub)												//We have established a connection and we have their keys!
     {
 		if(UseRSA)
 		{
 			mpz_class Values = MyRSA.BigEncrypt(ClientMod, ClientE, SymKey);	//Encrypt The Symmetric Key With Their Public Key, base 64
 			string MyValues = Export64(Values);
+
 			while(MyValues.size() < RECV_SIZE)
 				MyValues.push_back('\0');
 
 			//Send The Encrypted Symmetric Key
 			if(send(Client, MyValues.c_str(), RECV_SIZE, 0) < 0)
 			{
-				perror("Connect failure");
+				ui->StatusLabel->setText(QString("Couldn't send encrypted symmetric key"));
 				return -5;
 			}
-			SentStuff = 2;			//We have given them our symmetric key
+			SentStuff = 2;														//We have given them our symmetric key
 		}
 		else
 			SentStuff = 3;
@@ -403,44 +417,144 @@ int PeerToPeer::Update()
 
 void PeerToPeer::TryConnect(bool SendPublic)
 {
-	if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(socketInfo)) >= 0) 	//attempt to connect using socketInfo with client values
+	if(ProxyPort > 0)
 	{
-        if(SendPublic)
+		if(!ProxyRequest)
 		{
-			if(UseRSA)
+			if(IsIP(ClntAddr))
 			{
-				string TempValues = "";
-				string MyValues = "";
-
-				TempValues = Export64(MyMod);		//Base64 will save digits
-				MyValues = TempValues + "|";		//Pipe char to seperate keys
-
-				TempValues = Export64(MyE);
-				MyValues += TempValues;				//MyValues is equal to the string for the modulus + string for exp concatenated
-
-				while(MyValues.size() < MAX_RSA_SIZE)
-					MyValues.push_back('\0');
-
-				//Send My Public Key And My Modulus Because We Started The Connection
-				if(send(Client, MyValues.c_str(), MAX_RSA_SIZE, 0) < 0)
-				{
-					perror("Connect failure");
-					return;
-				}
+				//SOCKS4 - Assuming no userID is required. Could be modified if becomes relevant
+				char ReqField[9];
+				ReqField[0] = 0x04;
+				ReqField[1] = 0x01;
+				uint16_t ServerPort = htons(PeerPort);
+				memcpy(&ReqField[2], &ServerPort, 2);
+				uint32_t ClntAddrBytes = inet_addr(ClntAddr.c_str());
+				memcpy(&ReqField[4], &ClntAddrBytes, 4);
+				ReqField[8] = 0;
+				send(Client, ReqField, 9, 0);
 			}
 			else
 			{
-				if(send(Client, CurveP, 32, 0) < 0)
+				//SOCKS4a - Assuming no userID is required. Could be modified if becomes relevant
+				char* ReqField = new char[9 + ClntAddr.size() + 1];
+				memset(ReqField, 0, 9 + ClntAddr.size() + 1);
+
+				ReqField[0] = 0x04;
+				ReqField[1] = 0x01;
+				uint16_t ServerPort = htons(PeerPort);
+				memcpy(&ReqField[2], &ServerPort, 2);
+				ReqField[7] = 0xFF;
+				memcpy(&ReqField[9], ClntAddr.c_str(), ClntAddr.size());
+				send(Client, ReqField, 9 + ClntAddr.size() + 1, 0);
+				delete[] ReqField;
+			}
+
+			ProxyRequest = true;
+			return;
+		}
+
+		if(FD_ISSET(Client, &read_fds))
+		{
+			ProxyRequest = false;
+			char RecvField[8];
+			int nbytes = recv(Client, RecvField, 8, 0);
+			if(nbytes <= 0)
+			{
+				//cout << "Disconnected from proxy\n";
+				FD_CLR(Client, &master);
+				close(Client);
+				Client = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+				if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in)) < 0)
 				{
-					perror("Connect failure");
+					ui->StatusLabel->setText(QString("Could not connect to proxy, ") + QString(strerror(errno)));
+					cout << "Could not connect to proxy, " << QString(strerror(errno)).toStdString() << endl;
+					close(Client);
+					Client = 0;
+					close(Serv);
+					Serv = 0;
 					return;
 				}
+				FD_SET(Client, &master);
+				if(Client > fdmax)
+					fdmax = Client;
+				return;
+			}
+
+			if(RecvField[0] != 0)
+			{
+				ui->StatusLabel->setText(QString("Proxy gave bad reply, exiting"));
+				cout << "Proxy gave bad reply, exiting\n";
+				close(Client);
+				Client = 0;
+				close(Serv);
+				Serv = 0;
+				return;
+			}
+			if(RecvField[1] != 0x5a)
+			{
+				//cout << "Proxy formally denied request with code 0x" << QString::number(RecvField[1], 16).toStdString() << endl;
+				FD_CLR(Client, &master);
+				close(Client);
+				Client = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+				if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in)) < 0)
+				{
+					ui->StatusLabel->setText(QString("Could not connect to proxy, ") + QString(strerror(errno)));
+					cout << "Could not connect to proxy, " << QString(strerror(errno)).toStdString() << endl;
+					close(Client);
+					Client = 0;
+					close(Serv);
+					Serv = 0;
+					return;
+				}
+				FD_SET(Client, &master);
+				if(Client > fdmax)
+					fdmax = Client;
+				return;
 			}
 		}
-		SentStuff = 1;			//We have sent our keys
-		ConnectedClnt = true;
-		ui->StatusLabel->setText(QString("Waiting..."));
+		else
+			return;
 	}
+	else if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(socketInfo)) < 0)
+		return;
+
+	//Connect succeeded!!!
+	if(SendPublic)
+	{
+		if(UseRSA)
+		{
+			string TempValues = "";
+			string MyValues = "";
+
+			TempValues = Export64(MyMod);		//Base64 will save digits
+			MyValues = TempValues + "|";		//Pipe char to seperate keys
+
+			TempValues = Export64(MyE);
+			MyValues += TempValues;				//MyValues is equal to the string for the modulus + string for exp concatenated
+
+			while(MyValues.size() < MAX_RSA_SIZE)
+				MyValues.push_back('\0');
+
+			//Send My Public Key And My Modulus Because We Started The Connection
+			if(send(Client, MyValues.c_str(), MAX_RSA_SIZE, 0) < 0)
+			{
+				ui->StatusLabel->setText(QString("Couldn't send public key"));
+				return;
+			}
+		}
+		else
+		{
+			if(send(Client, CurveP, 32, 0) < 0)
+			{
+				ui->StatusLabel->setText(QString("Couldn't send public key"));
+				return;
+			}
+		}
+	}
+	SentStuff = 1;								//We have sent our keys
+	ConnectedClnt = true;
+	ui->StatusLabel->setText(QString("Waiting..."));
 	return;
 }
 #endif

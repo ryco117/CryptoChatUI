@@ -124,7 +124,7 @@
       <bool>false</bool>
      </property>
      <property name="maxLength">
-      <number>15</number>
+      <number>50</number>
      </property>
     </widget>
     <widget class="QPushButton" name="ConnectButton">
@@ -133,9 +133,9 @@
      </property>
      <property name="geometry">
       <rect>
-       <x>399</x>
+       <x>370</x>
        <y>280</y>
-       <width>101</width>
+       <width>100</width>
        <height>25</height>
       </rect>
      </property>
@@ -174,8 +174,8 @@
       <rect>
        <x>340</x>
        <y>200</y>
-       <width>131</width>
-       <height>31</height>
+       <width>130</width>
+       <height>30</height>
       </rect>
      </property>
      <property name="text">
@@ -367,9 +367,9 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>0</y>
-       <width>160</width>
-       <height>30</height>
+       <y>65</y>
+       <width>170</width>
+       <height>25</height>
       </rect>
      </property>
      <property name="text">
@@ -377,16 +377,19 @@
      </property>
     </widget>
     <widget class="QCheckBox" name="SendPublicCB">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
      <property name="geometry">
       <rect>
        <x>10</x>
        <y>35</y>
-       <width>160</width>
+       <width>170</width>
        <height>25</height>
       </rect>
      </property>
      <property name="text">
-      <string>Send Peer Public Key</string>
+      <string>Send Public Key To Peer</string>
      </property>
      <property name="checked">
       <bool>true</bool>
@@ -410,7 +413,7 @@
      <widget class="QLineEdit" name="MyPrivateLocLine">
       <property name="geometry">
        <rect>
-        <x>120</x>
+        <x>130</x>
         <y>72</y>
         <width>240</width>
         <height>20</height>
@@ -459,7 +462,7 @@
      <widget class="QLineEdit" name="MyPublicLocLine">
       <property name="geometry">
        <rect>
-        <x>120</x>
+        <x>130</x>
         <y>30</y>
         <width>240</width>
         <height>20</height>
@@ -469,7 +472,7 @@
      <widget class="QLineEdit" name="MyPrivatePassLine">
       <property name="geometry">
        <rect>
-        <x>120</x>
+        <x>130</x>
         <y>102</y>
         <width>240</width>
         <height>20</height>
@@ -482,7 +485,7 @@
      <widget class="QPushButton" name="CreateKeysButton">
       <property name="geometry">
        <rect>
-        <x>380</x>
+        <x>385</x>
         <y>100</y>
         <width>80</width>
         <height>25</height>
@@ -499,43 +502,46 @@
      </property>
      <property name="geometry">
       <rect>
-       <x>270</x>
-       <y>5</y>
-       <width>220</width>
+       <x>370</x>
+       <y>69</y>
+       <width>120</width>
        <height>20</height>
       </rect>
      </property>
     </widget>
-    <widget class="QLabel" name="PortNumberLabel">
+    <widget class="QLabel" name="PeerPortNumberLabel">
      <property name="geometry">
       <rect>
-       <x>190</x>
+       <x>260</x>
        <y>35</y>
-       <width>80</width>
+       <width>110</width>
        <height>25</height>
       </rect>
      </property>
      <property name="text">
-      <string>Port Number</string>
+      <string>Peer Port Number</string>
      </property>
     </widget>
-    <widget class="QLineEdit" name="PortLine">
+    <widget class="QLineEdit" name="PeerPortLine">
      <property name="geometry">
       <rect>
-       <x>270</x>
+       <x>370</x>
        <y>37</y>
-       <width>220</width>
+       <width>120</width>
        <height>20</height>
       </rect>
+     </property>
+     <property name="text">
+      <string>5001</string>
      </property>
     </widget>
     <widget class="QLabel" name="PeerPublicKeyNameLabel">
      <property name="geometry">
       <rect>
-       <x>190</x>
-       <y>0</y>
-       <width>80</width>
-       <height>30</height>
+       <x>260</x>
+       <y>65</y>
+       <width>110</width>
+       <height>25</height>
       </rect>
      </property>
      <property name="text">
@@ -546,13 +552,13 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>72</y>
-       <width>331</width>
-       <height>25</height>
+       <y>0</y>
+       <width>210</width>
+       <height>30</height>
       </rect>
      </property>
      <property name="text">
-      <string>Use RSA instead of ECC for asymmetric encryption</string>
+      <string>RSA for asymmetric encryption</string>
      </property>
     </widget>
     <widget class="QGroupBox" name="ProxySettingsGroup">
@@ -575,24 +581,53 @@
        <rect>
         <x>10</x>
         <y>20</y>
-        <width>150</width>
+        <width>120</width>
         <height>35</height>
        </rect>
       </property>
       <property name="text">
-       <string>Proxy IPv4 Address:Port</string>
+       <string>Proxy Address:Port</string>
       </property>
      </widget>
      <widget class="QLineEdit" name="ProxyAddrLine">
       <property name="geometry">
        <rect>
-        <x>160</x>
+        <x>130</x>
         <y>27</y>
-        <width>200</width>
+        <width>240</width>
         <height>20</height>
        </rect>
       </property>
+      <property name="text">
+       <string/>
+      </property>
      </widget>
+    </widget>
+    <widget class="QLabel" name="BindPortNumberLabel">
+     <property name="geometry">
+      <rect>
+       <x>260</x>
+       <y>0</y>
+       <width>110</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Bind Port Number</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="BindPortLine">
+     <property name="geometry">
+      <rect>
+       <x>370</x>
+       <y>5</y>
+       <width>120</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>5001</string>
+     </property>
     </widget>
    </widget>
    <widget class="QLabel" name="StatusLabel">
@@ -617,12 +652,12 @@
     </property>
    </widget>
    <zorder>LoadMyKeysWidget</zorder>
-   <zorder>OptionsWidget</zorder>
+   <zorder>ConnectSettingsWidget</zorder>
    <zorder>SendText</zorder>
    <zorder>SendButton</zorder>
    <zorder>StatusLabel</zorder>
    <zorder>ReceiveText</zorder>
-   <zorder>ConnectSettingsWidget</zorder>
+   <zorder>OptionsWidget</zorder>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
@@ -648,7 +683,9 @@
      <string>Help</string>
     </property>
     <addaction name="actionHelp"/>
+    <addaction name="separator"/>
     <addaction name="actionAbout"/>
+    <addaction name="actionLicense"/>
    </widget>
    <widget class="QMenu" name="menuAdvanced">
     <property name="title">
@@ -713,6 +750,11 @@
   <action name="actionDisconnect">
    <property name="text">
     <string>Disconnect</string>
+   </property>
+  </action>
+  <action name="actionLicense">
+   <property name="text">
+    <string>License</string>
    </property>
   </action>
  </widget>

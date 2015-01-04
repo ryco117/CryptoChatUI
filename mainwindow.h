@@ -47,6 +47,7 @@ private:
     Ui::MainWindow *ui;
     QMessageBox* msgBox;
     void CreateActions();
+	void StartConnection();
 
 private slots:
     void SafeExit();
@@ -58,8 +59,10 @@ private slots:
     void Help();
     void OptionsSetup();
     void on_CreateKeysButton_clicked();
-    void on_PortLine_textEdited(const QString &arg1);
+    void on_PeerPortLine_textEdited(const QString &arg1);
+	void on_BindPortLine_textEdited(const QString &arg1);
     void About();
+	void License();
     void Update();
     void on_PeerIPText_textEdited(const QString &arg1);
     void on_OpenPublicButton_clicked();

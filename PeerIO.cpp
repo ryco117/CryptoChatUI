@@ -10,7 +10,7 @@ string GetName(string file);
 void PeerToPeer::SendFilePt1()
 {
 	Sending = 2;
-    QString QFileName = QFileDialog::getOpenFileName(parent, QString("Open File"), "", QString("Files (*.*)"));
+    QString QFileName = QFileDialog::getOpenFileName(parent, QString("Open File"), "", QString("All Files (*)"));
     string Name = QFileName.toStdString();
 	FileToSend = Name;
 
