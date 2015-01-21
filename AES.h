@@ -8,7 +8,8 @@
 #include <fstream>
 #include <time.h>
 #include <stdlib.h>
-#include <gmpxx.h>
+
+#include "SFMT/SFMT.h"
 
 using namespace std;
 
@@ -173,7 +174,7 @@ public:
 				p[col][row] = (unsigned char)num;
 	}
 	
-	mat4(unsigned char* m)
+	mat4(const unsigned char* m)
 	{
 		for(int col = 0; col < 4; col++)
 			for(int row = 0; row < 4; row++)
@@ -347,12 +348,11 @@ inline unsigned int PaddedSize(unsigned int x)
 
 namespace
 {
-static mpz_class DEFAULTIV = mpz_class(0);
 class AES
 {
 public:
-	void Encrypt(const char* Msg, unsigned int MsgLen, mpz_class& GMPIV, mpz_class& Key, char* CipherText);
-	int Decrypt(const char* Cipher, unsigned int CipherLen, mpz_class& GMPIV, mpz_class& Key, char* PlainText);
+	void Encrypt(const char* Msg, unsigned int MsgLen, const uint8_t* IV, const uint8_t* Key, char* CipherText);
+	int Decrypt(const char* Cipher, unsigned int CipherLen, const uint8_t* IV, const uint8_t* Key, char* PlainText);
 };
 }
 #endif

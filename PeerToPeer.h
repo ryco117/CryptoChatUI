@@ -30,12 +30,12 @@ public:
 	//Server Functions
 	int StartServer(const int MAX_CLIENTS = 1, bool SendPublic = true, string SavePublic = "");
 	void ReceiveFile(std::string& Msg);
+	void DropLine(std::string pBuffer);
 
 	//Client Functions
 	void SendMessage(void);
 	void ParseInput(void);
 	void TryConnect(bool SendPublic = true);
-	void DropLine(std::string pBuffer);
 	void SendFilePt1(void);
 	void SendFilePt2(void);
 
@@ -52,13 +52,14 @@ public:
 	std::string FileLoc;		//string for saving file
 	unsigned int FileLength;	//length of the file
 	unsigned int BytesRead;		//bytes that we have received for the file
-	mpz_class PeerIV;			//the initialization vector for the current message
-	mpz_class FileIV;			//the IV for the current file part
+	uint8_t PeerIV[16];			//the initialization vector for the current message
+	uint8_t FileIV[16];			//the IV for the current file part
+	bool HasEphemeralPub;		//Have received the public key (RSA or ECDH)
+	bool HasStaticPub;			//Have the constant public key (RSA or ECDH)
 private:
     unsigned int MaxClients;
 public:
     string SavePub;
-	bool HasPub;
 
 	//Client Vars
 	int Client;					//Socket for sending data
@@ -68,7 +69,8 @@ public:
 	bool ProxyRequest;			//Did we send a proxy request (without response)
 	bool ConnectedClnt;			//have we connected to them yet?
 	std::string CipherMsg;		//string holding encrypted message to send
-	int Sending;				//What stage are we in sending? 0 = none, positive = trying to send message, negative = receiving
+	uint8_t Sending;			//What stage are we in sending? 0 = none, first bit set = typing file location, second bit set = sent request waiting for response
+								//third bit set = sending file, final bit set = receiving file
 	std::string FileToSend;		//String showing the file we are sending
 	unsigned int FilePos;		//Position in the file we are sending
     bool SendPub;
@@ -88,14 +90,24 @@ public:
 	//Encryption
 	RSA MyRSA;
 	AES MyAES;
-	mpz_class MyMod;
-	mpz_class MyE;
-	mpz_class MyD;
-	mpz_class ClientMod;
-	mpz_class ClientE;
-	mpz_class SymKey;
-	uint8_t CurveK[32], CurveP[32], CurvePPeer[32], SharedKey[32];
+	uint8_t SymKey[32];
+	uint8_t SharedKey[32];
 	gmp_randclass* RNG;
+	sfmt_t* sfmt;
+	//Ephemeral
+	mpz_class EphMyMod;
+	mpz_class EphMyE;
+	mpz_class EphMyD;
+	mpz_class EphClientMod;
+	mpz_class EphClientE;
+	uint8_t EphCurveK[32], EphCurveP[32], EphCurvePPeer[32];
+	//Static (Signing)
+	mpz_class StcMyMod;
+	mpz_class StcMyE;
+	mpz_class StcMyD;
+	mpz_class StcClientMod;
+	mpz_class StcClientE;
+	uint8_t StcCurveK[32], StcCurveP[32], StcCurvePPeer[32];
 
 	//FD SET
 	fd_set master;				//Master file descriptor list

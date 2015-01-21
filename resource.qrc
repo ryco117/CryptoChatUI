@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/new/img">
+        <file>bitcoin.png</file>
+        <file>BTCAddress.png</file>
+    </qresource>
+</RCC>

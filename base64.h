@@ -13,10 +13,10 @@ static char BaseTable[] = {
 'w', 'x', 'y', 'z', '0', '1', '2', '3',
 '4', '5', '6', '7', '8', '9', '+','/'};
 
-static char* Base64Encode(const char* DataC, int len)
+static char* Base64Encode(const char* DataC, unsigned int len)
 {
 	char* Result;
-	int r = len % 3;
+	unsigned int r = len % 3;
 	unsigned char* Data = new unsigned char[len + ((3 - r) % 3)];
 	memcpy(Data, DataC, len);
 
@@ -57,7 +57,7 @@ static char* Base64Encode(const char* DataC, int len)
 	return Result;
 }
 
-static char* Base64Decode(const char* Data, int& len)
+static char* Base64Decode(const char* Data, unsigned int& len)
 {
 	char* LookUp = new char[strlen(Data)];
 	char r = 0;
@@ -102,16 +102,86 @@ static char* Base64Decode(const char* Data, int& len)
 		Result[i * 3 + 1] = char((k & 0xFF00) >> 8);
 		Result[i * 3 + 2] = char(k & 0xFF);
 	}
-	len = (strlen(Data) / 4) * 3 - r;
-	Result[len] = 0;
+	if(&len != NULL)
+	{
+		len = (strlen(Data) / 4) * 3 - r;
+		Result[len] = 0;
+	}
 	return Result;
+}
+
+static void Base64Decode(const char* Data, char* Return, unsigned int maxLen)
+{
+	char* LookUp = new char[strlen(Data)];
+	char r = 0;
+	for(unsigned int i = 0; i < strlen(Data); i++)
+	{
+		if(Data[i] == '=')
+		{
+			LookUp[i] = 0;
+			r++;
+		}
+		else if(Data[i] != '\0')
+		{
+			char j = 0;
+			while(j < 64)
+			{
+				if(Data[i] == BaseTable[j])
+				{
+					LookUp[i] = j;
+					break;
+				}
+				j++;
+			}
+			if(j == 64)
+			{
+				memset(LookUp, 0, strlen(Data));
+				delete[] LookUp;
+				throw -1;
+				return;
+			}
+		}
+	}
+
+	if(((strlen(Data) / 4) * 3) - r > maxLen)
+	{
+		throw -2;
+		return;
+	}
+
+	char* Result = new char[(strlen(Data) / 4) * 3 + 1];
+	for(unsigned int i = 0; i * 4 < strlen(Data); i++)
+	{
+		int k = (unsigned int)LookUp[i * 4] << 18;
+		k += (unsigned int)LookUp[i * 4 + 1] << 12;
+		k += (unsigned int)LookUp[i * 4 + 2] << 6;
+		k += (unsigned int)LookUp[i * 4 + 3];
+
+		Result[i * 3] = char((k & 0xFF0000) >> 16);
+		Result[i * 3 + 1] = char((k & 0xFF00) >> 8);
+		Result[i * 3 + 2] = char(k & 0xFF);
+	}
+	unsigned int len = (strlen(Data) / 4) * 3 - r;
+	memcpy(Return, Result, len);
+	memset(Result, 0, len);
+	return;
 }
 
 static char* Export64(mpz_class& BigNum)
 {
 	char temp[2048] = {0};												//Big-num  max of 16384 bits
-	int size = 0;
+	unsigned int size = 0;
 	mpz_export(temp, (size_t*)&size, 1, 1, 0, 0, BigNum.get_mpz_t());
+
+	size = 1;
+	mpz_class MSBFinder = 1;
+	while(MSBFinder != 0)
+	{
+		mpz_div_2exp(MSBFinder.get_mpz_t(), BigNum.get_mpz_t(), size);
+		size += 1;
+	}
+	size -= 1;				//1 0 0 1 1 0 0 1 0 0 1
+	size = ((8 - (size % 8)) + size) / 8;
 
 	char* Result;
 	Result = Base64Encode(temp, size);
@@ -121,7 +191,7 @@ static char* Export64(mpz_class& BigNum)
 
 static void Import64(const char* Value, mpz_class& BigNum)
 {
-	int size;
+	unsigned int size;
 	char* Decode;
 	try
 	{

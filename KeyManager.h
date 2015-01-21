@@ -16,6 +16,10 @@ extern "C"
 #include "AES.cpp"
 #include "base64.h"
 
+#ifndef SCRYPT_WORK_VALUE
+	#define SCRYPT_WORK_VALUE 1048576
+#endif
+
 /* ---------------------- Fully implementing Curve25519 keys! -------------------------- */
 static bool LoadCurvePublicKey(string FileLoc, uint8_t Point[32])
 {
@@ -57,10 +61,9 @@ static bool LoadCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Pas
 	if(File.is_open())
 	{
 		char Salt64[25] = {0};
-		char IVStr[25] = {0};
-		mpz_class IV = 0;
-		char Hash[32] = {0};
-		mpz_class FinalKey = 0;
+		char IV64[25] = {0};
+		char* IV;
+		uint8_t FinalKey[32];
 
 		unsigned int FileLength = 0;
 		File.seekg(0, File.end);
@@ -70,58 +73,76 @@ static bool LoadCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Pas
 		if(strlen(Passwd))
 		{
 			File.read(Salt64, 24);
-			File.read(IVStr, 24);
+
+			uint64_t Scrypt_N_Value;
+			File.read((char*)&Scrypt_N_Value, 8);
+			uint32_t Scrypt_r_Value;
+			File.read((char*)&Scrypt_r_Value, 4);
+			uint32_t Scrypt_p_Value;
+			File.read((char*)&Scrypt_p_Value, 4);
+
+			File.read(IV64, 24);
 			char* Salt;
-			int SaltLen;								//Should equal 16
+			unsigned int Len;								//Should equal 16
 			try
 			{
-				Salt = Base64Decode(Salt64, SaltLen);
-				Import64(IVStr, IV);
+				Salt = Base64Decode(Salt64, Len);
 			}
 			catch(int e)
 			{
-				cout << "Error: Incorrect password or format\n";
+				msgBox = new QMessageBox;
+                msgBox->setText(QString("Error: Incorrect password or format: 1"));
+                msgBox->setIcon(QMessageBox::Warning);
+                msgBox->setStandardButtons(QMessageBox::Ok);
+                msgBox->exec();
+                delete msgBox;
+
+				delete[] Salt;
 				return false;
 			}
-			if(SaltLen != 16)
+			if(Len != 16)
 			{
-				cout << "Error: Incorrect password or format\n";
+				msgBox = new QMessageBox;
+                msgBox->setText(QString("Error: Incorrect password or format: 2"));
+                msgBox->setIcon(QMessageBox::Warning);
+                msgBox->setStandardButtons(QMessageBox::Ok);
+                msgBox->exec();
+                delete msgBox;
+
+				delete[] Salt;
 				return false;
 			}
-
-			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, 16384, 14, 2, (unsigned char*)Hash, 32);
+			IV = Base64Decode(IV64, Len);
+			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, Scrypt_N_Value, Scrypt_r_Value, Scrypt_p_Value, FinalKey, 32);
 			delete[] Salt;
-			mpz_import(FinalKey.get_mpz_t(), 32, 1, 1, 0, 0, Hash);
-
-			//Hash needs to be DELETED!
-			memset(Hash, 0, 32);
 		}
-
-		int n = FileLength - File.tellg();
+		unsigned int n = FileLength - File.tellg();
 		char* Cipher = new char[n];
 		File.read(Cipher, n);
 
 		AES crypt;
 		char* Original = new char[n];
-		if(FinalKey != 0)
+		if(strlen(Passwd))
 		{
-			n = crypt.Decrypt(Cipher, n, IV, FinalKey, Original);
-			if(n == -1)
+			int dec_len = crypt.Decrypt(Cipher, n, (uint8_t*)IV, FinalKey, Original);
+			delete[] IV;
+			if(dec_len == -1)
 			{
 				msgBox = new QMessageBox;
-	            msgBox->setText(QString("Error: Incorrect password or format"));
+	            msgBox->setText(QString("Error: Incorrect password or format: 3"));
 	            msgBox->setIcon(QMessageBox::Warning);
 	            msgBox->setStandardButtons(QMessageBox::Ok);
 	            msgBox->exec();
 	            delete msgBox;
 
-				memset(Original, 0, sizeof(Original));
+				memset(Original, 0, n);
+				memset(FinalKey, 0, 32);
 				delete[] Original;
 				delete[] Cipher;
 				File.close();
 				return false;
 			}
-			mpz_xor(FinalKey.get_mpz_t(), FinalKey.get_mpz_t(), FinalKey.get_mpz_t());		//Should zero out all data of our hash/sym key
+			memset(FinalKey, 0, 32);											//Should zero out all data of our hash/sym key
 		}
 		else
 			Original = strcpy(Original, Cipher);
@@ -129,7 +150,7 @@ static bool LoadCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Pas
 		if(strncmp(Original, "crypto-key-ecc\n", 15))										//Check for proper format
 		{
 			msgBox = new QMessageBox;
-            msgBox->setText(QString("Error: Incorrect password or format"));
+            msgBox->setText(QString("Error: Incorrect password or format: 4"));
             msgBox->setIcon(QMessageBox::Warning);
             msgBox->setStandardButtons(QMessageBox::Ok);
             msgBox->exec();
@@ -186,38 +207,40 @@ static void MakeCurvePublicKey(string FileLoc, uint8_t Point[32])
 	return;
 }
 
-static void MakeCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Passwd, char* Salt, mpz_class& IV)
+static void MakeCurvePrivateKey(string FileLoc, uint8_t Key[32], const char* Passwd, char* Salt, uint8_t* IV)
 {
 	fstream File(FileLoc.c_str(), ios::out | ios::trunc);
 	if(File.is_open())
 	{
 		char Original[47] = {"crypto-key-ecc\n"};
-		char Hash[32] = {0};
-		mpz_class FinalKey = 0;
+		uint8_t FinalKey[32];
 
 		if(strlen(Passwd))
 		{
-			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, 16384, 14, 2, (unsigned char*)Hash, 32);
-			mpz_import(FinalKey.get_mpz_t(), 32, 1, 1, 0, 0, Hash);
-
-			//Hash needs to be DELETED!
-			memset(Hash, 0, 32);
+			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, SCRYPT_WORK_VALUE, 8, 1, FinalKey, 32);
 		}
-
 		for(unsigned int i = 0; i < 32; i++)
 			Original[15 + i] = (char)Key[i];
 
 		AES crypt;
-		if(FinalKey != 0)
+		if(strlen(Passwd))
 		{
 			char* Cipher = new char[48];
 			crypt.Encrypt(Original, 47, IV, FinalKey, Cipher);
-			mpz_xor(FinalKey.get_mpz_t(), FinalKey.get_mpz_t(), FinalKey.get_mpz_t());		//Should zero out all data of our AES key
+			memset(FinalKey, 0, 32);										//Should zero out all data of our AES key
 			char* S = Base64Encode(Salt, 16);
-			char* I = Export64(IV);
+			char* I = Base64Encode((char*)IV, 16);
 
-			File.write(S, 24);																//Write the salt in base64
-			File.write(I, 24);																//Write the IV in base64
+			File.write(S, 24);												//Write the salt in base64
+
+			uint64_t Scrypt_N_Value = SCRYPT_WORK_VALUE;
+			File.write((char*)&Scrypt_N_Value, 8);
+			uint32_t Scrypt_r_Value = 8;
+			File.write((char*)&Scrypt_r_Value, 4);
+			uint32_t Scrypt_p_Value = 1;
+			File.write((char*)&Scrypt_p_Value, 4);
+
+			File.write(I, 24);												//Write the IV in base64
 			File.write(Cipher, 48);
 
 			delete[] Cipher;
@@ -320,10 +343,9 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 	if(File.is_open())
 	{
         char Salt64[25] = {0};
-        char IVStr[25] = {0};
-        mpz_class IV = 0;
-        char Hash[32] = {0};
-        mpz_class FinalKey = 0;
+        char IV64[25] = {0};
+		uint8_t* IV;
+		uint8_t FinalKey[32];
 
         unsigned int FileLength = 0;
         File.seekg(0, File.end);
@@ -333,59 +355,77 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 		if(strlen(Passwd))
 		{
 			File.read(Salt64, 24);
-			File.read(IVStr, 24);
+
+			uint64_t Scrypt_N_Value;
+			File.read((char*)&Scrypt_N_Value, 8);
+			uint32_t Scrypt_r_Value;
+			File.read((char*)&Scrypt_r_Value, 4);
+			uint32_t Scrypt_p_Value;
+			File.read((char*)&Scrypt_p_Value, 4);
+
+			File.read(IV64, 24);
 			char* Salt;
-			int SaltLen;								//Should equal 16
+			unsigned int Len;								//Should equal 16
 			try
 			{
-				Salt = Base64Decode(Salt64, SaltLen);
-				Import64(IVStr, IV);
+				Salt = Base64Decode(Salt64, Len);
+				IV = (uint8_t*)Base64Decode(IV64, Len);
 			}
 			catch(int e)
 			{
-				cout << "Error: Incorrect password or format\n";
-				return false;
-			}
-			if(SaltLen != 16)
-			{
-				cout << "Error: Incorrect password or format\n";
-				return false;
-			}
-
-			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, 16384, 14, 2, (unsigned char*)Hash, 32);
-			delete[] Salt;
-			mpz_import(FinalKey.get_mpz_t(), 32, 1, 1, 0, 0, Hash);
-
-			//Hash needs to be DELETED!
-			memset(Hash, 0, 32);
-		}
-
-        int n = FileLength - File.tellg();
-        char* Cipher = new char[n];
-        File.read(Cipher, n);
-
-        AES crypt;
-		char* Original = new char[n + 1];
-		Original[n] = 0;
-        if(FinalKey != 0)
-        {
-			n = crypt.Decrypt(Cipher, n, IV, FinalKey, Original);
-			if(n == -1)
-			{
-                msgBox = new QMessageBox;
-                msgBox->setText(QString("Error: Incorrect password or format"));
+				msgBox = new QMessageBox;
+                msgBox->setText(QString("Error: Incorrect password or format: 1"));
                 msgBox->setIcon(QMessageBox::Warning);
                 msgBox->setStandardButtons(QMessageBox::Ok);
                 msgBox->exec();
                 delete msgBox;
 
-				memset(Original, 0, sizeof(Original));
+				delete[] Salt;
+				return false;
+			}
+			if(Len != 16)
+			{
+				msgBox = new QMessageBox;
+                msgBox->setText(QString("Error: Incorrect password or format: 2"));
+                msgBox->setIcon(QMessageBox::Warning);
+                msgBox->setStandardButtons(QMessageBox::Ok);
+                msgBox->exec();
+                delete msgBox;
+
+				delete[] Salt;
+				return false;
+			}
+
+			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, Scrypt_N_Value, Scrypt_r_Value, Scrypt_p_Value, FinalKey, 32);
+			delete[] Salt;
+		}
+		unsigned int n = FileLength - File.tellg();
+		char* Cipher = new char[n];
+		File.read(Cipher, n);
+
+        AES crypt;
+		char* Original = new char[n + 1];
+		Original[n] = 0;
+        if(strlen(Passwd))
+        {
+			int dec_len = crypt.Decrypt(Cipher, n, IV, FinalKey, Original);
+			if(dec_len == -1)
+			{
+                msgBox = new QMessageBox;
+                msgBox->setText(QString("Error: Incorrect password or format: 3"));
+                msgBox->setIcon(QMessageBox::Warning);
+                msgBox->setStandardButtons(QMessageBox::Ok);
+                msgBox->exec();
+                delete msgBox;
+
+				memset(Original, 0, n);
+				memset(FinalKey, 0, 32);
 				delete[] Original;
 				delete[] Cipher;
                 File.close();
                 return false;
             }
-            mpz_xor(FinalKey.get_mpz_t(), FinalKey.get_mpz_t(), FinalKey.get_mpz_t());		//Should zero out all data of our hash/sym key
+            memset(FinalKey, 0, 32);						//Should zero out all data of our hash/sym key
         }
         else
             memcpy(Original, Cipher, n);
@@ -393,7 +433,7 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 		if(strncmp(Original, "crypto-key-rsa\n", 15))		//Check for proper format
 		{
             msgBox = new QMessageBox;
-            msgBox->setText(QString("Error: Incorrect password or format"));
+            msgBox->setText(QString("Error: Incorrect password or format: 4"));
             msgBox->setIcon(QMessageBox::Warning);
             msgBox->setStandardButtons(QMessageBox::Ok);
             msgBox->exec();
@@ -412,7 +452,7 @@ static bool LoadRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 		catch(int e)
 		{
             msgBox = new QMessageBox;
-            msgBox->setText(QString("Error: Incorrect password or format"));
+            msgBox->setText(QString("Error: Incorrect password or format: 5"));
             msgBox->setIcon(QMessageBox::Warning);
             msgBox->setStandardButtons(QMessageBox::Ok);
             msgBox->exec();
@@ -469,22 +509,17 @@ static void MakeRSAPublicKey(string FileLoc, mpz_class& Modulus, mpz_class& Enc)
 	return;
 }
 
-static void MakeRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd, char* Salt, mpz_class& IV)
+static void MakeRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd, char* Salt, uint8_t* IV)
 {
 	fstream File(FileLoc.c_str(), ios::out | ios::trunc);
 	if(File.is_open())
 	{
 		char* Original;
-		char Hash[32] = {0};
-		mpz_class FinalKey = 0;
+		uint8_t FinalKey[32];
 
         if(strlen(Passwd))
         {
-			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, 16384, 14, 2, (unsigned char*)Hash, 32);
-			mpz_import(FinalKey.get_mpz_t(), 32, 1, 1, 0, 0, Hash);
-
-			//Hash needs to be DELETED!
-			memset(Hash, 0, 32);
+			libscrypt_scrypt((const unsigned char*)Passwd, strlen(Passwd), (const unsigned char*)Salt, 16, SCRYPT_WORK_VALUE, 8, 1, FinalKey, 32);
         }
 
 		char* Dec64 = Export64(Dec);
@@ -497,7 +532,7 @@ static void MakeRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 
 		AES crypt;
 		char* Cipher;
-		if(FinalKey != 0)
+		if(strlen(Passwd))
 		{
 			Cipher = new char[PaddedSize(Length)];
 			crypt.Encrypt(Original, Length, IV, FinalKey, Cipher);
@@ -505,13 +540,21 @@ static void MakeRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 		else
 			Cipher = Original;
 
-		if(FinalKey != 0)
+		if(strlen(Passwd))
 		{
 			char* S = Base64Encode(Salt, 16);
-			char* I = Export64(IV);
-			mpz_xor(FinalKey.get_mpz_t(), FinalKey.get_mpz_t(), FinalKey.get_mpz_t());		//Should zero out all data of our hash/sym key
-			File.write(S, 24);																//Write the salt in base64
-			File.write(I, 24);																//Write the IV in base64
+			char* I = Base64Encode((char*)IV, 16);
+			memset(FinalKey, 0, 32);									//Should zero out all data of our hash/sym key
+			File.write(S, 24);											//Write the salt in base64
+
+			uint64_t Scrypt_N_Value = SCRYPT_WORK_VALUE;
+			File.write((char*)&Scrypt_N_Value, 8);
+			uint32_t Scrypt_r_Value = 8;
+			File.write((char*)&Scrypt_r_Value, 4);
+			uint32_t Scrypt_p_Value = 1;
+			File.write((char*)&Scrypt_p_Value, 4);
+
+			File.write(I, 24);											//Write the IV in base64
 			delete[] S;
 			delete[] I;
 			File.write(Cipher, PaddedSize(Length));
@@ -537,5 +580,17 @@ static void MakeRSAPrivateKey(string FileLoc, mpz_class& Dec, const char* Passwd
 		delete msgBox;
 	}
 	return;
+}
+
+static bool CanOpenFile(string FileLoc, ios_base::openmode mode = ios_base::in | ios_base::out)
+{
+	fstream File(FileLoc.c_str(), mode);
+	if(File.is_open())
+	{
+		File.close();
+		return true;
+	}
+	else
+		return false;
 }
 #endif

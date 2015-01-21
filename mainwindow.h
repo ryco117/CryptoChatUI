@@ -13,6 +13,11 @@
 #include <string>
 #include <ifaddrs.h>
 
+#define SFMT_MEXP 19937
+
+#include "getpasswordwidget.h"
+#include "createkeysfield.h"
+#include "donatewindow.h"
 #include "curve25519-donna.c"
 #include "ecdh.h"
 #include "PeerToPeer.cpp"
@@ -32,15 +37,12 @@ private:
 
 public:
     explicit MainWindow(QWidget *parent = 0);
-    void GMPSeed(gmp_randclass* rng);
-    gmp_randclass* rng;
+    void SeedAll();
+	gmp_randclass* rng;
+	sfmt_t sfmt;
     PeerToPeer MyPTP;
     RSA NewRSA;
     AES Cipher;
-
-    mpz_class SymmetricKey;
-    mpz_class Mod;
-    mpz_class Keys[2];
     ~MainWindow();
 
 private:
@@ -61,8 +63,12 @@ private slots:
     void on_CreateKeysButton_clicked();
     void on_PeerPortLine_textEdited(const QString &arg1);
 	void on_BindPortLine_textEdited(const QString &arg1);
+	void on_ProxyAddrLine_textEdited(const QString &arg1);
     void About();
 	void License();
+	void Donate();
+	void GetOwnStaticPub();
+	void GetPeerStaticPub();
     void Update();
     void on_PeerIPText_textEdited(const QString &arg1);
     void on_OpenPublicButton_clicked();
@@ -75,6 +81,8 @@ private slots:
     void on_SavePublicCB_toggled(bool checked);
 	void on_GenerateButton_clicked();
 	void on_UseRSACB_toggled(bool checked);
+	bool SaveSettings();
+	bool LoadSettings();
 };
 
 #endif // MAINWINDOW_H

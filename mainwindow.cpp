@@ -39,26 +39,78 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
     ui->MyPrivatePassLine->setEchoMode(QLineEdit::Password);
 
     rng = new gmp_randclass(gmp_randinit_default);
-    GMPSeed(rng);
+    SeedAll();
 
     MyPTP.ui = ui;
     MyPTP.parent = this;
+	MyPTP.RNG = rng;
+	MyPTP.sfmt = &sfmt;
     MyPTP.Serv = 0;
     MyPTP.Client = 0;
     MyPTP.PeerPort = 5001;
 	MyPTP.BindPort = 5001;
-    MyPTP.ClientMod = 0;
-    MyPTP.ClientE = 0;
-    MyPTP.Sending = 0;
-    MyPTP.SentStuff = 0;
-    MyPTP.RNG = rng;
-	MyPTP.GConnected = false;
-	MyPTP.HasPub = false;
+	MyPTP.ProxyPort = 0;
+	MyPTP.StcClientMod = 0;
+	MyPTP.StcClientE = 0;
+	MyPTP.Sending = 0;
+	MyPTP.HasEphemeralPub = false;
+	MyPTP.HasStaticPub = false;
 	MyPTP.UseRSA = false;
 
-    MyPTP.SymKey = rng->get_z_bits(256);
-    Keys[0] = 65537;
-    Mod = 0;
+	LoadSettings();
+
+	if(CanOpenFile("MyKeys.pub", ios_base::in) && CanOpenFile("MyKeys.priv", ios_base::in))
+	{
+		char* Passwd = new char[256];
+		memset(Passwd, 0, 256);
+		GetPasswordWidget w(Passwd, this);
+		w.setWindowTitle("Private Key Password");
+		if(w.exec() == QDialog::Accepted)
+		{
+			bool HadError = false;
+			if(MyPTP.UseRSA)
+			{
+				if(!LoadRSAPrivateKey("MyKeys.priv", MyPTP.StcMyD, Passwd))
+				{
+					memset(Passwd, 0, 256);
+					delete[] Passwd;
+					mpz_xor(MyPTP.StcMyD.get_mpz_t(), MyPTP.StcMyD.get_mpz_t(), MyPTP.StcMyD.get_mpz_t());
+					HadError = true;
+				}
+				else if(!LoadRSAPublicKey("MyKeys.pub", MyPTP.StcMyMod, MyPTP.StcMyE))
+				{
+					memset(Passwd, 0, 256);
+					delete[] Passwd;
+					MyPTP.StcMyMod = 0;
+					MyPTP.StcMyE = 0;
+					mpz_xor(MyPTP.StcMyD.get_mpz_t(), MyPTP.StcMyD.get_mpz_t(), MyPTP.StcMyD.get_mpz_t());
+					mpz_xor(MyPTP.StcMyE.get_mpz_t(), MyPTP.StcMyE.get_mpz_t(), MyPTP.StcMyE.get_mpz_t());
+					mpz_xor(MyPTP.StcMyMod.get_mpz_t(), MyPTP.StcMyMod.get_mpz_t(), MyPTP.StcMyMod.get_mpz_t());
+					HadError = true;
+				}
+			}
+			else
+			{
+				if(!LoadCurvePrivateKey("MyKeys.priv", MyPTP.StcCurveK, Passwd))
+				{
+					memset(Passwd, 0, 256);
+					delete[] Passwd;
+					memset((char*)MyPTP.StcCurveK, 0, 32);
+					HadError = true;
+				}
+				else if(!LoadCurvePublicKey("MyKeys.pub", MyPTP.StcCurveP))
+				{
+					memset(Passwd, 0, 256);
+					delete[] Passwd;
+					memset((char*)MyPTP.StcCurveK, 0, 32);
+					memset((char*)MyPTP.StcCurveP, 0, 32);
+					HadError = true;
+				}
+			}
+			if(!HadError)
+				ui->actionLoad_Keys->setDisabled(true);
+		}
+	}
 }
 
 void MainWindow::CreateActions()
@@ -74,13 +126,33 @@ void MainWindow::CreateActions()
     connect(ui->actionHelp, SIGNAL(triggered()), this, SLOT(Help()));
     connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(About()));
 	connect(ui->actionLicense, SIGNAL(triggered()), this, SLOT(License()));
+	connect(ui->actionDonate, SIGNAL(triggered()), this, SLOT(Donate()));
+	connect(ui->actionOwn, SIGNAL(triggered()), this, SLOT(GetOwnStaticPub()));
+	connect(ui->actionPeer_s, SIGNAL(triggered()), this, SLOT(GetPeerStaticPub()));
 }
 
-void MainWindow::SafeExit()
+void MainWindow::SeedAll()
 {
-    if(MyPTP.Serv > 0)
-        closesocket(MyPTP.Serv);
-    MainWindow::close();
+    //Properly Seed rand()
+    FILE* random;
+    uint32_t* seed = new uint32_t[20];
+    random = fopen ("/dev/urandom", "r");		//Unix provides it, why not use it
+    if(random == NULL)
+    {
+        fprintf(stderr, "Cannot open /dev/urandom!\n");
+		delete[] seed;
+        return;
+    }
+	for(int i = 0; i < 20; i++)
+	{
+		fread(&seed[i], sizeof(uint32_t), 1, random);
+		srand(seed[i]);							//seed the default random number generator
+		rng->seed(seed[i]);						//seed the GMP random number generator
+	}
+	sfmt_init_by_array(&sfmt, seed, 20);
+	fclose(random);
+	memset(seed, 0, sizeof(uint32_t) * 20);
+	delete[] seed;
 }
 
 void MainWindow::ConnectSetup()
@@ -92,17 +164,19 @@ void MainWindow::ConnectSetup()
     ui->ReceiveText->setHidden(!shown);
     ui->SendText->setHidden(!shown);
     ui->SendButton->setHidden(!shown);
-	if((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0))
+	if((MyPTP.UseRSA && MyPTP.StcMyMod != 0) || (!MyPTP.UseRSA && MyPTP.StcCurveK[31] != 0))
 	{
 		ui->PublicKeyInfoLabel->setText(tr("Public/private keys are set."));
+		ui->GenerateButton->setVisible(false);
+		ui->actionLoad_Keys->setDisabled(true);
 		if(!ui->PeerIPText->text().isEmpty())
 		    ui->ConnectButton->setEnabled(true);
 	}
 	else
 	{
 		ui->PublicKeyInfoLabel->setText(tr("Since you have not manually loaded a public/private key pair, one can be<br/>\
-										   generated for this session and exported to files for future use. It is highly<br/>\
-										   recommended that you can confirm in person or across a very trusted medium<br/>\
+										   generated for this session and exported to files for future use. It is <b>highly<br/>\
+										   recommended</b> that you can confirm in person or across a very trusted medium<br/>\
 										   that your peers have received and saved your public key to ensure security<br/>\
 										   against a man-in-the-middle actively injecting false public keys as belonging to<br/>\
 										   you."));
@@ -208,12 +282,14 @@ void MainWindow::on_SavePublicCB_toggled(bool checked)
 void MainWindow::on_UseRSACB_toggled(bool checked)
 {
 	MyPTP.UseRSA = checked;
+	SaveSettings();
 }
+
 void MainWindow::on_CreateKeysButton_clicked()
 {
     if(ui->MyPrivateLocLine->text().size() != 0 && ui->MyPublicLocLine->text().size() != 0)
     {
-		if((MyPTP.UseRSA && MyPTP.MyMod == 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] == 0))
+		if((MyPTP.UseRSA && MyPTP.StcMyMod == 0) || (!MyPTP.UseRSA && MyPTP.StcCurveK[31] == 0))
 		{
 			msgBox = new QMessageBox;
 			msgBox->setText(tr("Since no public keys are in memory,\nwill generate new ones."));
@@ -223,36 +299,35 @@ void MainWindow::on_CreateKeysButton_clicked()
 	        delete msgBox;
 
 			if(MyPTP.UseRSA)
-			{
-				NewRSA.KeyGenerator(Keys, Mod, *rng, true, false);
-				MyPTP.MyMod = Mod;
-				MyPTP.MyE = Keys[0];
-				MyPTP.MyD = Keys[1];
-			}
+				NewRSA.KeyGenerator(MyPTP.StcMyD, MyPTP.StcMyE, MyPTP.StcMyMod, *rng);
 			else
-				ECC_Curve25519_Create(MyPTP.CurveP, MyPTP.CurveK, *rng);
+				ECC_Curve25519_Create(MyPTP.StcCurveP, MyPTP.StcCurveK, sfmt);
 		}
 
         const char* Passwd = ui->MyPrivatePassLine->text().toStdString().c_str();
-		char SaltStr[16] = {0};
 
-		mpz_class Salt = rng->get_z_bits(128);
-		mpz_export(SaltStr, 0, 1, 1, 0, 0, Salt.get_mpz_t());
-		mpz_class TempIV = rng->get_z_bits(128);
+		char* SaltStr = new char[16];
+		sfmt_fill_small_array64(&sfmt, (uint64_t*)SaltStr, 2);
+		uint8_t* TempIV = new uint8_t[16];
+		sfmt_fill_small_array64(&sfmt, (uint64_t*)TempIV, 2);
 
 		if(MyPTP.UseRSA)
 		{
-			MakeRSAPrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.MyD, Passwd, SaltStr, TempIV);
+			MakeRSAPrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.StcMyD, Passwd, SaltStr, TempIV);
 			ui->MyPrivatePassLine->clear();
-			MakeRSAPublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.MyMod, MyPTP.MyE);
+			MakeRSAPublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.StcMyMod, MyPTP.StcMyE);
 		}
 		else
 		{
-			MakeCurvePrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.CurveK, Passwd, SaltStr, TempIV);
+			MakeCurvePrivateKey(ui->MyPrivateLocLine->text().toStdString(), MyPTP.StcCurveK, Passwd, SaltStr, TempIV);
 			ui->MyPrivatePassLine->clear();
-			MakeCurvePublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.CurveP);
+			MakeCurvePublicKey(ui->MyPublicLocLine->text().toStdString(), MyPTP.StcCurveP);
 		}
-		ui->StatusLabel->setText(tr("Generated Keys Successfully"));
+
+		delete[] SaltStr;
+		delete[] TempIV;
+		if(CanOpenFile(ui->MyPrivateLocLine->text().toStdString()) && CanOpenFile(ui->MyPublicLocLine->text().toStdString()))
+			ui->StatusLabel->setText(tr("Generated Keys Successfully"));
 	}
     else
     {
@@ -271,6 +346,7 @@ void MainWindow::on_PeerPortLine_textEdited(const QString &arg1)
     int i = arg1.toInt(&b);
     if(b)
         MyPTP.PeerPort = i;
+	SaveSettings();
 }
 void MainWindow::on_BindPortLine_textEdited(const QString &arg1)
 {
@@ -278,6 +354,12 @@ void MainWindow::on_BindPortLine_textEdited(const QString &arg1)
     int i = arg1.toInt(&b);
     if(b)
         MyPTP.BindPort = i;
+	SaveSettings();
+}
+
+void MainWindow::on_ProxyAddrLine_textEdited(const QString &arg1)
+{
+	SaveSettings();
 }
 
 void MainWindow::LoadMyKeys()
@@ -296,23 +378,21 @@ void MainWindow::on_OpenPublicButton_clicked()
 
 	if(MyPTP.UseRSA)
 	{
-		if(fileName.size() == 0 || !LoadRSAPublicKey(fileName.toStdString(), Mod, Keys[0]))
+		if(fileName.size() == 0 || !LoadRSAPublicKey(fileName.toStdString(), MyPTP.StcMyMod, MyPTP.StcMyE))
 		{
-			Mod = 0;
-			Keys[0] = 0;
+			MyPTP.StcMyMod = 0;
+			MyPTP.StcMyE = 0;
 		}
 		else
 		{
 			ui->PublicKeyLocLabel->setText(fileName);
-			MyPTP.MyMod = Mod;
-			MyPTP.MyE = Keys[0];
 		}
 	}
 	else
 	{
-		if(fileName.size() == 0 || !LoadCurvePublicKey(fileName.toStdString(), MyPTP.CurveP))
+		if(fileName.size() == 0 || !LoadCurvePublicKey(fileName.toStdString(), MyPTP.StcCurveP))
 		{
-			memset((char*)MyPTP.CurveP, 0, 32);
+			memset((char*)MyPTP.StcCurveP, 0, 32);
 		}
 		else
 			ui->PublicKeyLocLabel->setText(fileName);
@@ -324,18 +404,15 @@ void MainWindow::on_OpenPrivateButton_clicked()
     const char* Pass = ui->PasswordLine->text().toStdString().c_str();
 	if(MyPTP.UseRSA)
 	{
-		if(fileName.size() == 0 || !LoadRSAPrivateKey(fileName.toStdString(), Keys[1], Pass))
-			Keys[1] = 0;
+		if(fileName.size() == 0 || !LoadRSAPrivateKey(fileName.toStdString(), MyPTP.StcMyD, Pass))
+			mpz_xor(MyPTP.StcMyD.get_mpz_t(), MyPTP.StcMyD.get_mpz_t(), MyPTP.StcMyD.get_mpz_t());
 		else
-		{
 			ui->PrivateKeyLocLabel->setText(fileName);
-			MyPTP.MyD = Keys[1];
-		}
 	}
 	else
 	{
-		if(fileName.size() == 0 || !LoadCurvePrivateKey(fileName.toStdString(), MyPTP.CurveK, Pass))
-			memset((char*)MyPTP.CurveK, 0, 32);
+		if(fileName.size() == 0 || !LoadCurvePrivateKey(fileName.toStdString(), MyPTP.StcCurveK, Pass))
+			memset((char*)MyPTP.StcCurveK, 0, 32);
 		else
 			ui->PrivateKeyLocLabel->setText(fileName);
 	}
@@ -355,24 +432,25 @@ void MainWindow::LoadPeerPublicKey()
     QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("All Files (*)"));
     if(MyPTP.UseRSA)
 	{
-		if(fileName.size() == 0 || !LoadRSAPublicKey(fileName.toStdString(), MyPTP.ClientMod, MyPTP.ClientE))
+		if(fileName.size() == 0 || !LoadRSAPublicKey(fileName.toStdString(), MyPTP.StcClientMod, MyPTP.StcClientE))
 		{
-		    MyPTP.ClientMod = 0;
-		    MyPTP.ClientE = 0;
+		    MyPTP.StcClientMod = 0;
+		    MyPTP.StcClientE = 0;
 		}
 	}
 	else
 	{
-		if(fileName.size() == 0 || !LoadCurvePublicKey(fileName.toStdString(), MyPTP.CurvePPeer))
+		if(fileName.size() == 0 || !LoadCurvePublicKey(fileName.toStdString(), MyPTP.StcCurvePPeer))
 		{
-		    memset((char*)MyPTP.CurvePPeer, 0, 32);
+		    memset((char*)MyPTP.StcCurvePPeer, 0, 32);
 		}
 	}
 }
 
 void MainWindow::Help()
 {
-    msgBox = new QMessageBox;
+    msgBox = new QMessageBox(this);
+	msgBox->setWindowTitle("Help");
     msgBox->setText(tr("Don't understand how all this encryption stuff fits togther?<br/>\
 						<b>Consult the book of knowledge!</b><br/>\
 						<a href=\"http://en.wikipedia.org/wiki/Public-key_cryptography\">Public Key Cryptography</a><br/>\
@@ -394,7 +472,8 @@ void MainWindow::Help()
 
 void MainWindow::About()
 {
-    msgBox = new QMessageBox;
+    msgBox = new QMessageBox(this);
+	msgBox->setWindowTitle("About");
     msgBox->setText(tr("This is a GUI version of the original CryptoChat.\
 					   It was built to maintain complete compatability \
 					   between the two versions and so, has the same \
@@ -416,7 +495,8 @@ void MainWindow::About()
 
 void MainWindow::License()
 {
-    msgBox = new QMessageBox;
+    msgBox = new QMessageBox(this);
+	msgBox->setWindowTitle("License");
     msgBox->setText(tr("Copyright (C) 2014  Ryan Andersen<br/>\
 <br/>\
 				       This program is free software: you can redistribute it and/or modify<br/>\
@@ -435,6 +515,71 @@ void MainWindow::License()
     msgBox->setIcon(QMessageBox::Information);
     msgBox->setStandardButtons(QMessageBox::Ok);
     msgBox->exec();
+    delete msgBox;
+}
+
+void MainWindow::Donate()
+{
+	DonateWindow w(this);
+	w.setWindowTitle("Donate");
+	w.exec();
+}
+
+void MainWindow::GetOwnStaticPub()
+{
+    msgBox = new QMessageBox(this);
+	msgBox->setWindowTitle("Own Static Public Key");
+	msgBox->setTextFormat(Qt::RichText);
+    msgBox->setIcon(QMessageBox::Information);
+    msgBox->setStandardButtons(QMessageBox::Ok);
+
+	if((MyPTP.StcMyMod != 0 && MyPTP.UseRSA) || (MyPTP.StcCurveK[31] != 0 && !MyPTP.UseRSA))
+	{
+		char* StcPubKey64;
+		if(MyPTP.UseRSA)
+			StcPubKey64 = Export64(MyPTP.StcMyMod);
+		else
+			StcPubKey64 = Base64Encode((char*)MyPTP.StcCurveP, 32);
+
+		msgBox->setText(StcPubKey64);
+		msgBox->exec();
+		delete[] StcPubKey64;
+	}
+	else
+	{
+		msgBox->setText(tr("Static public key not set"));
+		msgBox->exec();
+	}
+
+    delete msgBox;
+}
+
+void MainWindow::GetPeerStaticPub()
+{
+    msgBox = new QMessageBox(this);
+	msgBox->setWindowTitle("Peer Static Public Key");
+	msgBox->setTextFormat(Qt::RichText);
+    msgBox->setIcon(QMessageBox::Information);
+    msgBox->setStandardButtons(QMessageBox::Ok);
+
+	if(MyPTP.HasStaticPub)
+	{
+		char* StcPubKey64;
+		if(MyPTP.UseRSA)
+			StcPubKey64 = Export64(MyPTP.StcClientMod);
+		else
+			StcPubKey64 = Base64Encode((char*)MyPTP.StcCurvePPeer, 32);
+
+		msgBox->setText(StcPubKey64);
+		msgBox->exec();
+		delete[] StcPubKey64;
+	}
+	else
+	{
+		msgBox->setText(tr("Static public key not set"));
+		msgBox->exec();
+	}
+
     delete msgBox;
 }
 
@@ -484,40 +629,15 @@ void MainWindow::Update()
     {
         int error;
         if(MyPTP.ContinueLoop)
+		{
             error = MyPTP.Update();
+		}
         else
         {
-            for(int i = 0; i < MyPTP.GetMaxClients(); i++)
-                if(MyPTP.MySocks[i] > 0)
-                    closesocket(MyPTP.MySocks[i]);
-			delete[] MyPTP.MySocks;
-
-            closesocket(MyPTP.Serv);
-			closesocket(MyPTP.Client);
-            MyPTP.Serv = 0;
-            MyPTP.Client = 0;
-			MyPTP.ClntAddr.clear();
-            MyPTP.ClientMod = 0;
-            MyPTP.ClientE = 0;
-            MyPTP.Sending = 0;
-            MyPTP.SentStuff = 0;
-            MyPTP.GConnected = false;
-            MyPTP.ConnectedClnt = false;
-            MyPTP.ConnectedSrvr = false;
-			MyPTP.HasPub = false;
-			mpz_xor(MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t());
-			MyPTP.SymKey = rng->get_z_bits(256);
-			memset(MyPTP.CurvePPeer, 0, 32);
-
-            ui->ReceiveText->append(tr("Disconnected from peer."));
-            ui->SendButton->setDisabled(true);
-            ui->SendText->setDisabled(true);
-            ui->ReceiveText->setDisabled(true);
-			ui->StatusLabel->setText(QString("Not Connected"));
-			ui->ConnectButton->setDisabled(true);
+            error = 1;
         }
 
-        if(error < 0)
+        if(error != 0)
         {
 			for(int i = 0; i < MyPTP.GetMaxClients(); i++)
                 if(MyPTP.MySocks[i] > 0)
@@ -529,30 +649,48 @@ void MainWindow::Update()
             MyPTP.Serv = 0;
             MyPTP.Client = 0;
 			MyPTP.ClntAddr.clear();
-            MyPTP.ClientMod = 0;
-            MyPTP.ClientE = 0;
             MyPTP.Sending = 0;
             MyPTP.SentStuff = 0;
             MyPTP.GConnected = false;
             MyPTP.ConnectedClnt = false;
             MyPTP.ConnectedSrvr = false;
-			MyPTP.HasPub = false;
-			mpz_xor(MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t());
-			MyPTP.SymKey = rng->get_z_bits(256);
-			memset(MyPTP.CurvePPeer, 0, 32);
+			MyPTP.HasEphemeralPub = false;
+			MyPTP.HasStaticPub = false;
+
+			//Clear single use values
+			memset(MyPTP.SymKey, 0, 32);
+			if(MyPTP.UseRSA)
+			{
+				mpz_xor(MyPTP.EphMyE.get_mpz_t(), MyPTP.EphMyE.get_mpz_t(), MyPTP.EphMyE.get_mpz_t());
+				mpz_xor(MyPTP.EphMyD.get_mpz_t(), MyPTP.EphMyD.get_mpz_t(), MyPTP.EphMyD.get_mpz_t());
+				mpz_xor(MyPTP.EphMyMod.get_mpz_t(), MyPTP.EphMyMod.get_mpz_t(), MyPTP.EphMyMod.get_mpz_t());
+				MyPTP.StcClientMod = 0;
+	            MyPTP.StcClientE = 0;
+			}
+			else
+			{
+				memset(MyPTP.SharedKey, 0, 32);
+				memset((char*)MyPTP.EphCurveP, 0, 32);
+				memset((char*)MyPTP.EphCurveK, 0, 32);
+				memset((char*)MyPTP.StcCurvePPeer, 0, 32);
+			}
 
             ui->ReceiveText->append(tr("Disconnected from peer."));
             ui->SendButton->setDisabled(true);
             ui->SendText->setDisabled(true);
             ui->ReceiveText->setDisabled(true);
 			ui->ConnectButton->setDisabled(true);
+			ui->StatusLabel->setText(QString("Not Connected"));
 
-            msgBox = new QMessageBox;
-            msgBox->setText(QString("Update loop failed, error code ") + QString::number(error));
-            msgBox->setIcon(QMessageBox::Warning);
-            msgBox->setStandardButtons(QMessageBox::Ok);
-            msgBox->exec();
-            delete msgBox;
+			if(error < 0)
+			{
+				msgBox = new QMessageBox;
+				msgBox->setText(QString("Update loop failed, error code ") + QString::number(error));
+				msgBox->setIcon(QMessageBox::Warning);
+				msgBox->setStandardButtons(QMessageBox::Ok);
+				msgBox->exec();
+				delete msgBox;
+			}
         }
     }
 }
@@ -565,40 +703,52 @@ void MainWindow::on_SendText_returnPressed()
     MyPTP.SendMessage();
 }
 
-void MainWindow::GMPSeed(gmp_randclass* rng)
-{
-    //Properly Seed rand()
-    FILE* random;
-    unsigned int seed;
-    random = fopen ("/dev/urandom", "r");		//Unix provides it, why not use it
-    if(random == NULL)
-    {
-        fprintf(stderr, "Cannot open /dev/urandom!\n");
-        return;
-    }
-	for(int i = 0; i < 20; i++)
-	{
-		fread(&seed, sizeof(seed), 1, random);
-		srand(seed);							//seed the default random number generator
-		rng->seed(seed);						//seed the GMP random number generator
-	}
-	fclose(random);
-}
-
 void MainWindow::on_GenerateButton_clicked()
 {
-	if(MyPTP.UseRSA)
+	char* Passwd = new char[256];
+	memset(Passwd, 0, 256);
+	QString PubLoc;
+	QString PrivLoc;
+	CreateKeysField w(&PubLoc, &PrivLoc, Passwd, this);
+	w.setWindowTitle("Create Keys");
+	if(w.exec() == QDialog::Rejected)
 	{
-		NewRSA.KeyGenerator(Keys, Mod, *rng, true, false);
-		MyPTP.MyMod = Mod;
-		MyPTP.MyE = Keys[0];
-		MyPTP.MyD = Keys[1];
+		ui->StatusLabel->setText(QString("Cancelled creating keys"));
+		return;
+	}
+
+	if(ui->UseRSACB->isChecked())
+	{
+		NewRSA.KeyGenerator(MyPTP.StcMyD, MyPTP.StcMyE, MyPTP.StcMyMod, *rng);
 	}
 	else
 	{
-		ECC_Curve25519_Create(MyPTP.CurveP, MyPTP.CurveK, *rng);
+		ECC_Curve25519_Create(MyPTP.StcCurveP, MyPTP.StcCurveK, sfmt);
 	}
+
+	char* SaltStr = new char[16];
+	sfmt_fill_small_array64(&sfmt, (uint64_t*)SaltStr, 2);
+	uint8_t* TempIV = new uint8_t[16];
+	sfmt_fill_small_array64(&sfmt, (uint64_t*)TempIV, 2);
+
+	if(MyPTP.UseRSA)
+	{
+		MakeRSAPrivateKey(PrivLoc.toStdString(), MyPTP.StcMyD, Passwd, SaltStr, TempIV);
+		ui->MyPrivatePassLine->clear();
+		MakeRSAPublicKey(PubLoc.toStdString(), MyPTP.StcMyMod, MyPTP.StcMyE);
+	}
+	else
+	{
+		MakeCurvePrivateKey(PrivLoc.toStdString(), MyPTP.StcCurveK, Passwd, SaltStr, TempIV);
+		ui->MyPrivatePassLine->clear();
+		MakeCurvePublicKey(PubLoc.toStdString(), MyPTP.StcCurveP);
+	}
+	memset(Passwd, 0, 256);
+	delete[] Passwd;
+
 	ui->PublicKeyInfoLabel->setText(tr("Public/private keys are set."));
+	ui->GenerateButton->setVisible(false);
+	ui->actionLoad_Keys->setDisabled(true);
 	ui->StatusLabel->setText(QString("Private/Public keys created!"));
 	if(!ui->PeerIPText->text().isEmpty())
         ui->ConnectButton->setEnabled(true);
@@ -606,7 +756,7 @@ void MainWindow::on_GenerateButton_clicked()
 
 void MainWindow::on_PeerIPText_textEdited(const QString &arg1)
 {
-	if(((MyPTP.UseRSA && MyPTP.MyMod != 0) || (!MyPTP.UseRSA && MyPTP.CurveK[31] != 0)) && !arg1.isEmpty())	//For a proper Curve25519, k[31] can't be zero (bit 254 always set) and so this checks if we generated the curve
+	if(((MyPTP.UseRSA && MyPTP.StcMyMod != 0) || (!MyPTP.UseRSA && MyPTP.StcCurveK[31] != 0)) && !arg1.isEmpty())	//For a proper Curve25519, k[31] can't be zero (bit 254 always set) and so this checks if we generated the curve
 		ui->ConnectButton->setEnabled(true);
 	else
 		ui->ConnectButton->setDisabled(true);
@@ -645,6 +795,23 @@ void MainWindow::StartConnection()
 			MyPTP.ProxyPort = 0;
 		}
 
+		//Fill all the One-Use encryption values
+		sfmt_fill_small_array64(&sfmt, (uint64_t*)MyPTP.SymKey, 4);			//Create a 256 bit long random value as our sym key
+		char* StcPubKey64;
+		if(MyPTP.UseRSA)
+		{
+			NewRSA.KeyGenerator(MyPTP.EphMyD, MyPTP.EphMyE, MyPTP.EphMyMod, *rng);
+			StcPubKey64 = Export64(MyPTP.StcMyMod);
+		}
+		else
+		{
+			ECC_Curve25519_Create(MyPTP.EphCurveP, MyPTP.EphCurveK, sfmt);
+			StcPubKey64 = Base64Encode((char*)MyPTP.StcCurveP, 32);
+		}
+
+		ui->ReceiveText->append(QString("Static public key: ") + QString(StcPubKey64) + QString("\n"));
+		delete[] StcPubKey64;
+
         int error = MyPTP.StartServer(1, ui->SendPublicCB->isChecked(), ui->PeerPublicLocLine->text().toStdString());
         if(error)
         {
@@ -662,6 +829,106 @@ void MainWindow::StartConnection()
 	return;
 }
 
+void MainWindow::SafeExit()
+{
+    if(MyPTP.Serv > 0)
+        closesocket(MyPTP.Serv);
+    MainWindow::close();
+}
+
+bool MainWindow::SaveSettings()
+{
+	fstream Config;
+	Config.open(".chat.config", ios_base::out | ios_base::trunc);
+	if(Config.is_open())
+	{
+		Config << "#####################################################################################################################################################################################\n";
+		Config << "#### THIS IS AN AUTO GENERATED FILE. DON'T EDIT, USE OPTIONS WINDOW INSTEAD (Case sensitive in case you don't care for warnings ;) but this is regenerated every options change) ####\n";
+		Config << "#####################################################################################################################################################################################\n\n";
+		if(MyPTP.UseRSA)
+			Config << "UseRSA=true\n";
+		Config << "BindPort=" << ui->BindPortLine->text().toStdString() << endl;
+		Config << "PeerPort=" << ui->PeerPortLine->text().toStdString() << endl;
+		if(!ui->ProxyAddrLine->text().isEmpty())
+			Config << "UseProxy=" << ui->ProxyAddrLine->text().toStdString() << endl;
+	}
+	else
+		return false;
+	return true;
+}
+
+bool MainWindow::LoadSettings()
+{
+	fstream Config;
+	Config.open(".chat.config", ios_base::in);
+	if(Config.is_open())
+	{
+		string line = "";
+		string Vals[4] = {"UseRSA", "BindPort", "PeerPort", "UseProxy"};
+		while(!Config.eof())
+		{
+			getline(Config, line);
+			if(line[0] != '#' && line.length() != 0)
+			{
+				for(int i = 0; i < 4; i++)
+				{
+					if(line.substr(0, Vals[i].size()) == Vals[i])
+					{
+						line = line.substr(Vals[i].size() + 1);
+						switch(i)
+						{
+							case 0:
+							{
+								if(line == "true")
+								{
+									MyPTP.UseRSA = true;
+									ui->UseRSACB->setChecked(true);
+								}
+								else if(line == "false")
+								{
+									MyPTP.UseRSA = true;
+									ui->UseRSACB->setChecked(true);
+								}
+								break;
+							}
+							case 1:
+							{
+								bool b;
+								int port = QString(line.c_str()).toInt(&b);
+								if(b)
+								{
+									MyPTP.BindPort = port;
+									ui->BindPortLine->setText(QString(line.c_str()));
+								}
+								break;
+							}
+							case 2:
+							{
+								bool b;
+								int port = QString(line.c_str()).toInt(&b);
+								if(b)
+								{
+									MyPTP.PeerPort = port;
+									ui->PeerPortLine->setText(QString(line.c_str()));
+								}
+								break;
+							}
+							case 3:
+							{
+								ui->ProxyAddrLine->setText(QString(line.c_str()));
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	else
+		return false;
+	return true;
+}
+
 MainWindow::~MainWindow()
 {
 	if(MyPTP.Serv)
@@ -675,26 +942,26 @@ MainWindow::~MainWindow()
 		closesocket(MyPTP.Client);
 	}
 
-    MyPTP.Serv = 0;
-    MyPTP.Client = 0;
-	MyPTP.ClntAddr.clear();
-    MyPTP.ClientMod = 0;
-    MyPTP.ClientE = 0;
-    MyPTP.Sending = 0;
-    MyPTP.SentStuff = 0;
-    MyPTP.GConnected = false;
-    MyPTP.ConnectedClnt = false;
-    MyPTP.ConnectedSrvr = false;
-	MyPTP.HasPub = false;
-	mpz_xor(MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t(), MyPTP.SymKey.get_mpz_t());
-	memset(MyPTP.CurvePPeer, 0, 32);
+	//Need proper string handling in the future!! (This will almost certainly do nothing to zero from memory)
+	ui->ReceiveText->clear();
+	ui->PasswordLine->clear();
+	ui->MyPrivatePassLine->clear();
 
-	memset(MyPTP.CurveP, 0, 32);
-	memset(MyPTP.CurveK, 0, 32);
-	mpz_xor(MyPTP.MyE.get_mpz_t(), MyPTP.MyE.get_mpz_t(), MyPTP.MyE.get_mpz_t());
-	mpz_xor(MyPTP.MyD.get_mpz_t(), MyPTP.MyD.get_mpz_t(), MyPTP.MyD.get_mpz_t());
-	mpz_xor(Keys[0].get_mpz_t(), Keys[0].get_mpz_t(), Keys[0].get_mpz_t());
-	mpz_xor(Keys[1].get_mpz_t(), Keys[1].get_mpz_t(), Keys[1].get_mpz_t());
+	//Clear critical values (and some public)
+	memset(MyPTP.SymKey, 0, 32);
+	if(MyPTP.UseRSA)
+	{
+		mpz_xor(MyPTP.EphMyE.get_mpz_t(), MyPTP.EphMyE.get_mpz_t(), MyPTP.EphMyE.get_mpz_t());
+		mpz_xor(MyPTP.EphMyD.get_mpz_t(), MyPTP.EphMyD.get_mpz_t(), MyPTP.EphMyD.get_mpz_t());
+	}
+	else
+	{
+		memset(MyPTP.SharedKey, 0, 32);
+		memset((char*)MyPTP.EphCurveP, 0, 32);
+		memset((char*)MyPTP.EphCurveK, 0, 32);
+		memset((char*)MyPTP.StcCurveP, 0, 32);
+		memset((char*)MyPTP.StcCurveK, 0, 32);
+	}
 
     delete ui;
     delete rng;

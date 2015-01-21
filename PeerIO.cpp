@@ -9,7 +9,8 @@ string GetName(string file);
 
 void PeerToPeer::SendFilePt1()
 {
-	Sending = 2;
+	Sending &= 128;						//Clear all but don't change receive status
+	Sending |= 2;						//Set request bit
     QString QFileName = QFileDialog::getOpenFileName(parent, QString("Open File"), "", QString("All Files (*)"));
     string Name = QFileName.toStdString();
 	FileToSend = Name;
@@ -28,18 +29,19 @@ void PeerToPeer::SendFilePt1()
 
 		Name = GetName(Name);
 		File.seekg(0, File.end);
-		__uint64_t Length = File.tellg();
+		uint64_t Length = File.tellg();
 		Length = __bswap_64(Length);
 
 		unsigned int EncLength = 8 + Name.length();
-		__uint32_t LenPadded = PaddedSize(EncLength);
+		uint32_t LenPadded = PaddedSize(EncLength);
 		char* EncName = new char[LenPadded];
 		memset(EncName, 0, LenPadded);
 		memcpy(EncName, (void*)(&Length), 8);
 		memcpy(&EncName[8], Name.c_str(), Name.length());
 
-		mpz_class IV = RNG->get_z_bits(128);
-		string IVStr = Export64(IV);
+		uint8_t IV[16];
+		sfmt_fill_small_array64(sfmt, (uint64_t*)IV, 2);
+		string IVStr = Base64Encode((char*)IV, 16);
 		while(IVStr.size() < IV64_LEN)
 			IVStr.push_back('\0');
 
@@ -54,7 +56,7 @@ void PeerToPeer::SendFilePt1()
 		delete[] EncName;
 		if(send(Client, FileRequest, RECV_SIZE, 0) < 0)
 		{
-			Sending = 0;
+			Sending &= 128;
 			ui->StatusLabel->setText(QString("File request failure"));
 		}
 		else
@@ -65,7 +67,7 @@ void PeerToPeer::SendFilePt1()
 	}
 	else
 	{
-		Sending = 0;
+		Sending &= 128;
         ui->StatusLabel->setText(QString("Could not open ") + QString(Name.c_str()) + QString(", file transfer cancelled."));
 	}
 	return;
@@ -95,14 +97,15 @@ void PeerToPeer::SendFilePt2()
 		File.read(Data, FileLeft);
 		FilePos += FileLeft;
 			
-		mpz_class IV = RNG->get_z_bits(128);
-		string SIV = Export64(IV);
-		while(SIV.size() < IV64_LEN)
-			SIV.push_back('\0');
+		uint8_t IV[16];
+		sfmt_fill_small_array64(sfmt, (uint64_t*)IV, 2);
+		string IVStr = Base64Encode((char*)IV, 16);
+		while(IVStr.size() < IV64_LEN)
+			IVStr.push_back('\0');
 		
 		MyAES.Encrypt(Data, FileLeft, IV, SymKey, Data);
 		FilePiece[0] = 3;
-		memcpy(&FilePiece[1], SIV.c_str(), IV64_LEN);
+		memcpy(&FilePiece[1], IVStr.c_str(), IV64_LEN);
 		LenPadded = htonl(LenPadded);
 		memcpy(&FilePiece[1 + IV64_LEN], &LenPadded, 4);
 		LenPadded = htonl(LenPadded);
@@ -112,7 +115,7 @@ void PeerToPeer::SendFilePt2()
 		if(n == -1)
 		{
 			ui->StatusLabel->setText(QString("SendFilePt2 Error"));
-			Sending = 0;
+			Sending &= 128;
 		}
 		delete[] FilePiece;
 		memset(Data, 0, LenPadded);
@@ -122,12 +125,12 @@ void PeerToPeer::SendFilePt2()
 		if(Finished)
 		{
 			ui->StatusLabel->setText(QString("Finished sending ") + QString(FileToSend.c_str()) + QString("."));
-			Sending = 0;	//file is done after this
+			Sending &= 128;			//file is done after this
 		}
 	}
 	else
 	{
-		Sending = 0;
+		Sending &= 128;
         ui->StatusLabel->setText(QString("Could not open ") + QString(FileToSend.c_str()) + QString(", file transfer cancelled."));
 	}
 	return;
@@ -144,7 +147,7 @@ void PeerToPeer::ReceiveFile(string& Msg)
 		DataSize = MyAES.Decrypt(Msg.c_str(), Msg.length(), FileIV, SymKey, Data);
 		if(DataSize == -1)
 		{
-			Sending = 0;
+			Sending &= 127;
 			memset(Data, 0, DataSize);
 			delete[] Data;
 			ui->StatusLabel->setText(QString("There was an issue decrypting file"));
@@ -157,14 +160,14 @@ void PeerToPeer::ReceiveFile(string& Msg)
 		BytesRead += DataSize;
 		if(BytesRead == FileLength)
 		{
-			Sending = 0;
+			Sending &= 127;
 			ui->StatusLabel->setText(QString("Finished saving ") + QString(FileLoc.c_str()) + QString(", ") + QString::number(FileLength) + QString(" bytes."));
 		}
 		File.close();
 	}
 	else
 	{
-		Sending = 0;
+		Sending &= 127;
 		ui->StatusLabel->setText(QString("Could not open ") + QString(FileLoc.c_str()) + QString(", file transfer cancelled."));
 	}
 	return;
@@ -173,9 +176,12 @@ void PeerToPeer::ReceiveFile(string& Msg)
 void PeerToPeer::DropLine(string pBuffer)
 {
 	char* print = new char[pBuffer.length()];
-	MyAES.Decrypt(pBuffer.c_str(), pBuffer.length(), PeerIV, SymKey, print);
-
-    ui->ReceiveText->append(QString("Client: ") + QString(print));		//Print What we received
+	if(MyAES.Decrypt(pBuffer.c_str(), pBuffer.length(), PeerIV, SymKey, print) == -1)
+		ui->ReceiveText->append(QString("The received message is corrupt\n"));
+	else
+	{
+		ui->ReceiveText->append(QString("Client: ") + QString(print));		//Print What we received
+	}
 	memset(print, 0, pBuffer.length());
 	delete[] print;
 	return;
@@ -187,9 +193,11 @@ void PeerToPeer::SendMessage()
     QByteArray ba = ui->SendText->text().toLocal8Bit();
     ui->SendText->setText(QString(""));
 
-    mpz_class IV = RNG->get_z_bits(128);
+    uint8_t IV[16];
+	sfmt_fill_small_array64(sfmt, (uint64_t*)IV, 2);
 	CipherMsg = "x";
-	CipherMsg += Export64(IV);
+	char* IVStr = Base64Encode((char*)IV, 16);
+	CipherMsg += IVStr;
 	while(CipherMsg.size() < 1 + IV64_LEN)
 		CipherMsg.push_back('\0');
 
@@ -199,13 +207,14 @@ void PeerToPeer::SendMessage()
 	MyAES.Encrypt(ba.data(), ba.size(), IV, SymKey, Cipher);
 
 	//Network Endian
-	CipherMsg.push_back((char)((__uint32_t)CipherSize >> 24));
-	CipherMsg.push_back((char)(((__uint32_t)CipherSize >> 16) & 0xFF));
-	CipherMsg.push_back((char)(((__uint32_t)CipherSize >> 8) & 0xFF));
-	CipherMsg.push_back((char)((__uint32_t)CipherSize & 0xFF));
+	CipherMsg.push_back((char)((uint32_t)CipherSize >> 24));
+	CipherMsg.push_back((char)(((uint32_t)CipherSize >> 16) & 0xFF));
+	CipherMsg.push_back((char)(((uint32_t)CipherSize >> 8) & 0xFF));
+	CipherMsg.push_back((char)((uint32_t)CipherSize & 0xFF));
 	for(unsigned int i = 0; i < CipherSize; i++)
 		CipherMsg.push_back(Cipher[i]);
 
+	delete[] IVStr;
 	delete[] Cipher;
 
 	while(CipherMsg.size() < RECV_SIZE)
