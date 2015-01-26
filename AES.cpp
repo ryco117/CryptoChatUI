@@ -5,15 +5,21 @@
 extern "C"
 {
 	bool AESNI();
-	void EncryptNI(const char* Text, unsigned int size, const uint8_t* IV, const uint8_t* Key, char* Buffer);
-	int DecryptNI(const char* Cipher, unsigned int size, const uint8_t* IV, const uint8_t* Key, char* Buffer);
+	void EncryptNix(const char* Text, unsigned int size, const uint8_t* IV, const uint8_t* Key, char* Buffer);
+	int DecryptNix(const char* Cipher, unsigned int size, const uint8_t* IV, const uint8_t* Key, char* Buffer);
+	void EncryptWin(const char* Text, unsigned int size, const uint8_t* IV, const uint8_t* Key, char* Buffer);
+	int DecryptWin(const char* Cipher, unsigned int size, const uint8_t* IV, const uint8_t* Key, char* Buffer);
 }
 
 void AES::Encrypt(const char* Msg, unsigned int MsgLen, const uint8_t* IV, const uint8_t* Key, char* CipherText)
 {
 	if(AESNI())
 	{
-		EncryptNI(Msg, MsgLen, IV, Key, CipherText);
+		#ifdef WINDOWS
+			EncryptWin(Msg, MsgLen, IV, Key, CipherText);
+		#else
+			EncryptNix(Msg, MsgLen, IV, Key, CipherText);
+		#endif
 		return;
 	}
 	
@@ -83,7 +89,11 @@ int AES::Decrypt(const char* Cipher, unsigned int CipherLen, const uint8_t* IV, 
 {
 	if(AESNI())
 	{
-		unsigned int l = DecryptNI(Cipher, CipherLen, IV, Key, PlainText);
+		#ifdef WINDOWS
+			unsigned int l = DecryptWin(Cipher, CipherLen, IV, Key, PlainText);
+		#else
+			unsigned int l = DecryptNix(Cipher, CipherLen, IV, Key, PlainText);
+		#endif
 		return l;
 	}
 	

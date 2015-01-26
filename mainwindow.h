@@ -8,10 +8,17 @@
 #include <QTextEdit>
 #include <QDebug>
 
-#include <unistd.h>
+#ifdef WINDOWS
+	#include <winsock2.h>
+	#include <Ws2tcpip.h>
+	#include <windows.h>
+	#include <Ntsecapi.h>
+#else
+	#include <unistd.h>
+	#include <ifaddrs.h>
+#endif
 #include <iostream>
 #include <string>
-#include <ifaddrs.h>
 
 #define SFMT_MEXP 19937
 

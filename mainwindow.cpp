@@ -1,7 +1,9 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include "CloseSocket.cpp"
+#ifndef WINDOWS
+	#include "CloseSocket.cpp"
+#endif
 
 MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWindow)
 {
@@ -111,6 +113,22 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
 				ui->actionLoad_Keys->setDisabled(true);
 		}
 	}
+	#ifdef WINDOWS
+		WSADATA wsaData;
+		int error = WSAStartup(0x0202, &wsaData); //start and fill results into wsaData and output error
+
+		if(error)
+		{
+			cout << "Startup error\n";
+			return; //Something went wrong
+		}
+		if(wsaData.wVersion != 0x0202)
+		{
+			cout << "Wrong version\n";
+			WSACleanup(); //Wrong wsaData version(not 2.2)
+			return;
+		}
+	#endif
 }
 
 void MainWindow::CreateActions()
@@ -133,24 +151,26 @@ void MainWindow::CreateActions()
 
 void MainWindow::SeedAll()
 {
-    //Properly Seed rand()
-    FILE* random;
-    uint32_t* seed = new uint32_t[20];
-    random = fopen ("/dev/urandom", "r");		//Unix provides it, why not use it
-    if(random == NULL)
-    {
-        fprintf(stderr, "Cannot open /dev/urandom!\n");
-		delete[] seed;
-        return;
-    }
-	for(int i = 0; i < 20; i++)
-	{
-		fread(&seed[i], sizeof(uint32_t), 1, random);
-		srand(seed[i]);							//seed the default random number generator
-		rng->seed(seed[i]);						//seed the GMP random number generator
-	}
+	//Properly Seed
+	uint32_t* seed = new uint32_t[20];
+	#ifdef WINDOWS
+		RtlGenRandom(seed, sizeof(uint32_t) * 20);
+	#else
+		FILE* random;
+		random = fopen ("/dev/urandom", "r");		//Unix provides it, why not use it
+		if(random == NULL)
+		{
+			fprintf(stderr, "Cannot open /dev/urandom!\n");
+		}
+		for(int i = 0; i < 20; i++)
+		{
+			fread(&seed[i], sizeof(uint32_t), 1, random);
+			srand(seed[i]);							//seed the default random number generator
+			rng->seed(seed[i]);						//seed the GMP random number generator
+		}
+		fclose(random);
+	#endif
 	sfmt_init_by_array(&sfmt, seed, 20);
-	fclose(random);
 	memset(seed, 0, sizeof(uint32_t) * 20);
 	delete[] seed;
 }

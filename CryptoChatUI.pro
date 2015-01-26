@@ -10,10 +10,11 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = CryptoChatUI
 TEMPLATE = app
+win32: DEFINES += WINDOWS
 
 SOURCES += main.cpp\
-		SFMT/SFMT.c\
-        mainwindow.cpp \
+    SFMT/SFMT.c\
+    mainwindow.cpp \
     AES.cpp \
     PeerIO.cpp \
     PeerToPeer.cpp \
@@ -42,11 +43,16 @@ FORMS    += mainwindow.ui \
     getpasswordwidget.ui
 
 unix:!macx: LIBS += -lgmpxx
-
 unix:!macx: LIBS += -lgmp
 
+#unix:!macx: LIBS += -L$$PWD/../../../../../../usr/local/lib/libscrypt.a
+unix:!macx: LIBS += /usr/local/lib/libscrypt.a
+
+unix:!macx: INCLUDEPATH += $$PWD/../../../../../../usr/local/include
+unix:!macx: DEPENDPATH += $$PWD/../../../../../../usr/local/include
+
 QMAKE_CFLAGS_RELEASE -= -O2
-QMAKE_CFLAGS_RELEASE += -O3
+QMAKE_CFLAGS_RELEASE -= -O0
 
 QMAKE_CXXFLAGS += -static
 QMAKE_CXXFLAGS += -Wno-strict-aliasing
@@ -61,15 +67,18 @@ QMAKE_CXXFLAGS_RELEASE += -O0
 QMAKE_LFLAGS_RELEASE -= -Wl,-O1
 QMAKE_LFLAGS_RELEASE += -O3
 
-#unix:!macx: LIBS += -L$$PWD/../../../../../../usr/local/lib/libscrypt.a
-unix:!macx: LIBS += /usr/local/lib/libscrypt.a
-
-INCLUDEPATH += $$PWD/../../../../../../usr/local/include
-DEPENDPATH += $$PWD/../../../../../../usr/local/include
-
 unix:!macx: PRE_TARGETDEPS += $$PWD/../../../../../../usr/local/lib/libscrypt.a
 
 OBJECTS += AES-NI.o
 
 RESOURCES += \
     resource.qrc
+
+win32: LIBS += C:\Library\libgmpxx.a
+win32: LIBS += C:\Library\libgmp.a
+win32: LIBS += -lWs2_32
+win32: LIBS += -lAdvapi32
+win32: LIBS += C:\Library\libscrypt.a
+
+win32: INCLUDEPATH += $$PWD/../../../../../../Include
+win32: DEPENDPATH += $$PWD/../../../../../../Include

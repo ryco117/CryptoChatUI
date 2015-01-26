@@ -9,11 +9,12 @@
 #include <cstring>
 #include <sstream>
 
-#include <arpa/inet.h>		//inet_addr
-
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netdb.h>
+#ifndef WINDOWS
+	#include <arpa/inet.h>		//inet_addr
+	#include <unistd.h>
+	#include <sys/socket.h>
+	#include <netdb.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -85,7 +86,7 @@ public:
 	bool GConnected;
 	bool ContinueLoop;
 	bool UseRSA;
-	struct sockaddr_in socketInfo;
+	sockaddr_in socketInfo;
 
 	//Encryption
 	RSA MyRSA;
@@ -124,9 +125,9 @@ public:
     ~PeerToPeer()
     {
         if(Serv)
-            close(Serv);
+			closesocket(Serv);
         if(Client)
-            close(Client);
+			closesocket(Client);
     }
 };
 }
@@ -179,10 +180,10 @@ inline bool IsDotOnion(string& addr)
 		return false;
 }
 
-static in_addr_t Resolve(string& addr)
+static u_long Resolve(string& addr)
 {
-	in_addr_t IP;
-	memset(&IP, 0, sizeof(in_addr_t));
+	u_long IP;
+	memset(&IP, 0, sizeof(u_long));
 
 	//Resolve IPv4 address from hostname
 	struct addrinfo hints;

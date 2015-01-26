@@ -3,6 +3,7 @@
 #include <string.h>
 #include <gmpxx.h>
 
+
 static char BaseTable[] = {
 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',

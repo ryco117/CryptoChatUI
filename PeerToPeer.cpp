@@ -1,6 +1,17 @@
 #ifndef PTP_CPP
 #define PTP_CPP
 
+#ifndef __bswap_64
+#define	__bswap_64(x)	(((uint64_t)(x) << 56) | \
+						(((uint64_t)(x) << 40) & 0xff000000000000ULL) | \
+						(((uint64_t)(x) << 24) & 0xff0000000000ULL) | \
+						(((uint64_t)(x) << 8)  & 0xff00000000ULL) | \
+						(((uint64_t)(x) >> 8)  & 0xff000000ULL) | \
+						(((uint64_t)(x) >> 24) & 0xff0000ULL) | \
+						(((uint64_t)(x) >> 40) & 0xff00ULL) | \
+						((uint64_t)(x)  >> 56))
+#endif
+
 #define IV64_LEN 24											//The max length an IV for AES could be (in base64)
 #define FILE_PIECE_LEN 2048									//The size in bytes of the blocks used for file sending
 #define RECV_SIZE (1 + IV64_LEN + 4 + FILE_PIECE_LEN + 16)	//Max size that a message could possibly be in bytes after initial setup
@@ -18,7 +29,7 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 	//		**-SERVER-**
 	if((Serv = socket(AF_INET, SOCK_STREAM, IPPROTO_IP)) < 0)		//assign Serv to a file descriptor (socket) that uses IP addresses, TCP
 	{
-		close(Serv);
+		closesocket(Serv);
 		Serv = 0;
 		return -1;
 	}
@@ -28,11 +39,11 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 	socketInfo.sin_addr.s_addr = htonl(INADDR_ANY);					//Allow connection from anybody
 	socketInfo.sin_port = htons(BindPort);								//Use port BindPort
 	
-	int optval = 1;
-	setsockopt(Serv, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);		//Remove Bind already used error
+	char optval = 1;
+	setsockopt(Serv, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof optval);		//Remove Bind already used error
 	if(bind(Serv, (struct sockaddr*)&socketInfo, sizeof(socketInfo)) < 0)	//Bind socketInfo to Serv
 	{
-		close(Serv);
+		closesocket(Serv);
 		Serv = 0;
 		return -2;
 	}
@@ -65,9 +76,9 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 			if(socketInfo.sin_addr.s_addr == 0)
 			{
 				ui->StatusLabel->setText(QString("Couldn't resolve proxy address"));
-				close(Client);
+				closesocket(Client);
 				Client = 0;
-				close(Serv);
+				closesocket(Serv);
 				Serv = 0;
 				return -4;
 			}
@@ -77,9 +88,9 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 		if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in)) < 0)
 		{
 			ui->StatusLabel->setText(QString("Could not connect to proxy"));
-			close(Client);
+			closesocket(Client);
 			Client = 0;
-			close(Serv);
+			closesocket(Serv);
 			Serv = 0;
 			return -3;
 		}
@@ -97,9 +108,9 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 			if(socketInfo.sin_addr.s_addr == 0)
 			{
 				ui->StatusLabel->setText(QString("Couldn't resolve peer address"));
-				close(Client);
+				closesocket(Client);
 				Client = 0;
-				close(Serv);
+				closesocket(Serv);
 				Serv = 0;
 				return -4;
 			}
@@ -161,9 +172,9 @@ int PeerToPeer::Update()
                 if((newSocket = accept(Serv, NULL, NULL)) < 0)		//assign socket newSocket to the person we are accepting on Serv
                 {													//unless it errors
 					if(ConnectedClnt)
-						close(Client);
+						closesocket(Client);
 					Client = 0;
-					close(Serv);
+					closesocket(Serv);
 					Serv = 0;
 					ui->StatusLabel->setText(QString("Error accepting connection"));
                     return -4;
@@ -181,7 +192,7 @@ int PeerToPeer::Update()
                     }
 					if(j == MaxClients)
 					{
-						close(newSocket);
+						closesocket(newSocket);
 						newSocket = -1;
 					}
                 }
@@ -224,7 +235,7 @@ int PeerToPeer::Update()
 	                        msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
 	                        if(msgBox->exec() == QMessageBox::No)
 	                        {
-								close(MySocks[i]); // bye!
+								closesocket(MySocks[i]); // bye!
 								FD_CLR(MySocks[i], &master);
 								MySocks[i] = -1;
 
@@ -283,7 +294,7 @@ int PeerToPeer::Update()
 	                        msgBox->setStandardButtons(QMessageBox::Ok);
 							msgBox->exec();
 
-							close(MySocks[i]); // bye!
+							closesocket(MySocks[i]); // bye!
 							FD_CLR(MySocks[i], &master);
 							MySocks[i] = -1;
 							ContinueLoop = false;
@@ -333,7 +344,7 @@ int PeerToPeer::Update()
 		                        msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
 		                        if(msgBox->exec() == QMessageBox::No)
 		                        {
-									close(MySocks[i]); // bye!
+									closesocket(MySocks[i]); // bye!
 									FD_CLR(MySocks[i], &master);
 									ContinueLoop = false;
 									MySocks[i] = -1;
@@ -398,7 +409,7 @@ int PeerToPeer::Update()
                     else
 						ui->ReceiveText->append(QString("Disconnected from peer ") + QString::number(i) + QString(" with error ") + QString::number(nbytes));
 
-                    close(MySocks[i]);				//bye!
+					closesocket(MySocks[i]);		//bye!
                     MySocks[i] = -1;
                     FD_CLR(MySocks[i], &master);	//remove from master set
                     ContinueLoop = false;
@@ -636,13 +647,13 @@ void PeerToPeer::TryConnect(bool SendPublic)
 			{
 				//cout << "Disconnected from proxy\n";
 				FD_CLR(Client, &master);
-				close(Client);
+				closesocket(Client);
 				Client = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
 				if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in)) < 0)
 				{
 					ui->StatusLabel->setText(QString("Could not connect to proxy"));
-					close(Client);
-					close(Serv);
+					closesocket(Client);
+					closesocket(Serv);
 					return;
 				}
 				FD_SET(Client, &master);
@@ -654,21 +665,21 @@ void PeerToPeer::TryConnect(bool SendPublic)
 			if(RecvField[0] != 0)
 			{
 				ui->StatusLabel->setText(QString("Proxy gave bad reply, exiting"));
-				close(Client);
-				close(Serv);
+				closesocket(Client);
+				closesocket(Serv);
 				ContinueLoop = false;
 				return;
 			}
 			if(RecvField[1] != 0x5a)
 			{
 				FD_CLR(Client, &master);
-				close(Client);
+				closesocket(Client);
 				Client = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
 				if(connect(Client, (struct sockaddr*)&socketInfo, sizeof(struct sockaddr_in)) < 0)
 				{
 					ui->StatusLabel->setText(QString("Could not connect to proxy"));
-					close(Client);
-					close(Serv);
+					closesocket(Client);
+					closesocket(Serv);
 					ContinueLoop = false;
 					return;
 				}
