@@ -16,6 +16,7 @@
 #else
 	#include <unistd.h>
 	#include <ifaddrs.h>
+	#include "CloseSocket.cpp"
 #endif
 #include <iostream>
 #include <string>
