@@ -55,9 +55,18 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
 	MyPTP.HasStaticPub = false;
 	MyPTP.UseRSA = false;
 
+	QDir Folder(QDir::homePath() + "/.CryptoChatUI");
+	if(!Folder.exists())
+	{
+		Folder = QDir::home();
+		Folder.mkdir(".CryptoChatUI");
+		Folder = QDir::homePath() + "/.CryptoChatUI";
+	}
 	LoadSettings();
 
-	if(CanOpenFile("MyKeys.pub", ios_base::in) && CanOpenFile("MyKeys.priv", ios_base::in))
+	string GuessPubLoc = (Folder.absolutePath() + "/MyKeys.pub").toStdString();
+	string GuessPrivLoc = (Folder.absolutePath() + "/MyKeys.priv").toStdString();
+	if(CanOpenFile(GuessPubLoc, ios_base::in) && CanOpenFile(GuessPrivLoc, ios_base::in))
 	{
 		char* Passwd = new char[256];
 		memset(Passwd, 0, 256);
@@ -68,14 +77,14 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
 			bool HadError = false;
 			if(MyPTP.UseRSA)
 			{
-				if(!LoadRSAPrivateKey("MyKeys.priv", MyPTP.StcMyD, Passwd))
+				if(!LoadRSAPrivateKey(GuessPrivLoc, MyPTP.StcMyD, Passwd))
 				{
 					memset(Passwd, 0, 256);
 					delete[] Passwd;
 					mpz_xor(MyPTP.StcMyD.get_mpz_t(), MyPTP.StcMyD.get_mpz_t(), MyPTP.StcMyD.get_mpz_t());
 					HadError = true;
 				}
-				else if(!LoadRSAPublicKey("MyKeys.pub", MyPTP.StcMyMod, MyPTP.StcMyE))
+				else if(!LoadRSAPublicKey(GuessPubLoc, MyPTP.StcMyMod, MyPTP.StcMyE))
 				{
 					memset(Passwd, 0, 256);
 					delete[] Passwd;
@@ -89,14 +98,14 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
 			}
 			else
 			{
-				if(!LoadCurvePrivateKey("MyKeys.priv", MyPTP.StcCurveK, Passwd))
+				if(!LoadCurvePrivateKey(GuessPrivLoc, MyPTP.StcCurveK, Passwd))
 				{
 					memset(Passwd, 0, 256);
 					delete[] Passwd;
 					memset((char*)MyPTP.StcCurveK, 0, 32);
 					HadError = true;
 				}
-				else if(!LoadCurvePublicKey("MyKeys.pub", MyPTP.StcCurveP))
+				else if(!LoadCurvePublicKey(GuessPubLoc, MyPTP.StcCurveP))
 				{
 					memset(Passwd, 0, 256);
 					delete[] Passwd;
@@ -208,7 +217,8 @@ void MainWindow::Disconnect()
 	}
     else
     {
-        msgBox = new QMessageBox;
+		msgBox = new QMessageBox(this);
+		msgBox->setWindowTitle("Wut?");
         msgBox->setText(tr("Uhhh... You weren't connected.."));
         msgBox->setIcon(QMessageBox::Question);
         msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
@@ -847,15 +857,15 @@ void MainWindow::StartConnection()
 
 void MainWindow::SafeExit()
 {
-    if(MyPTP.Serv > 0)
-        closesocket(MyPTP.Serv);
+	if(MyPTP.Client > 0)
+		MyPTP.ContinueLoop = false;
     MainWindow::close();
 }
 
 bool MainWindow::SaveSettings()
 {
 	fstream Config;
-	Config.open(".chat.config", ios_base::out | ios_base::trunc);
+	Config.open((QDir::homePath() + "/.CryptoChatUI/chat.config").toStdString().c_str(), ios_base::out | ios_base::trunc);
 	if(Config.is_open())
 	{
 		Config << "#####################################################################################################################################################################################\n";
@@ -876,7 +886,7 @@ bool MainWindow::SaveSettings()
 bool MainWindow::LoadSettings()
 {
 	fstream Config;
-	Config.open(".chat.config", ios_base::in);
+	Config.open((QDir::homePath() + "/.CryptoChatUI/chat.config").toStdString().c_str(), ios_base::in);
 	if(Config.is_open())
 	{
 		string line = "";

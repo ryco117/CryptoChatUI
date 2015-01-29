@@ -7,9 +7,9 @@ CreateKeysField::CreateKeysField(QString* pubLoc, QString* privLoc, char* passwd
 {
 	Passwd = passwd;
 	PubLoc = pubLoc;
-	*PubLoc = QString("MyKeys.pub");
+	*PubLoc = QDir::homePath() + QString("/.CryptoChatUI/MyKeys.pub");
 	PrivLoc = privLoc;
-	*PrivLoc = QString("MyKeys.priv");
+	*PrivLoc =  QDir::homePath() + QString("/.CryptoChatUI/MyKeys.priv");
 	ui->setupUi(this);
 }
 

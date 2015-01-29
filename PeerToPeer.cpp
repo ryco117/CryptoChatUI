@@ -118,11 +118,12 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 		socketInfo.sin_port = htons(PeerPort);					//uses port PeerPort
 	}
 
-	if(!HasStaticPub && CanOpenFile(ClntAddr + ".pub", ios_base::in))
+	string GuessPPubLoc = QDir::homePath().toStdString() + string("/.CryptoChatUI/") + ClntAddr + ".pub";
+	if(!HasStaticPub && CanOpenFile(GuessPPubLoc, ios_base::in))
 	{
 		if(UseRSA)
 		{
-			if(!LoadRSAPublicKey(ClntAddr + ".pub", StcClientMod, StcClientE))
+			if(!LoadRSAPublicKey(GuessPPubLoc, StcClientMod, StcClientE))
 			{
 				StcClientMod = 0;
 				StcClientE = 0;
@@ -132,7 +133,7 @@ int PeerToPeer::StartServer(const int MAX_CLIENTS, bool SendPublic, string SaveP
 		}
 		else
 		{
-			if(!LoadCurvePublicKey(ClntAddr + ".pub", StcCurvePPeer))
+			if(!LoadCurvePublicKey(GuessPPubLoc, StcCurvePPeer))
 				memset((char*)StcCurvePPeer, 0, 32);
 			else
 				HasStaticPub = true;
@@ -248,7 +249,7 @@ int PeerToPeer::Update()
 							else
 							{
 								if(SavePub.empty())
-									SavePub = ClntAddr + ".pub";
+									SavePub = QDir::homePath().toStdString() + string("/.CryptoChatUI/") + ClntAddr + ".pub";
 
 								mpz_import(StcClientMod.get_mpz_t(), MAX_RSA_SIZE, -1, 1, 0, 0, &SignedKey[16 + (MAX_RSA_SIZE * 3)]);
 								mpz_import(StcClientE.get_mpz_t(), MAX_RSA_SIZE, -1, 1, 0, 0, &SignedKey[16 + (MAX_RSA_SIZE * 4)]);
@@ -267,7 +268,7 @@ int PeerToPeer::Update()
 					{
 						ui->ReceiveText->append(QString("Can't authenticate without static public key"));
 						if(SavePub.empty())
-							SavePub = ClntAddr + ".pub";
+							SavePub = QDir::homePath().toStdString() + string("/.CryptoChatUI/") + ClntAddr + ".pub";
 
 						mpz_import(StcClientMod.get_mpz_t(), MAX_RSA_SIZE, -1, 1, 0, 0, &SignedKey[16 + (MAX_RSA_SIZE * 3)]);
 						mpz_import(StcClientE.get_mpz_t(), MAX_RSA_SIZE, -1, 1, 0, 0, &SignedKey[16 + (MAX_RSA_SIZE * 4)]);
@@ -353,7 +354,7 @@ int PeerToPeer::Update()
 								else
 								{
 									if(SavePub.empty())
-										SavePub = ClntAddr + ".pub";
+										SavePub = QDir::homePath().toStdString() + string("/.CryptoChatUI/") + ClntAddr + ".pub";
 
 									memcpy(StcCurvePPeer, &SignedKey[64], 32);
 									char* PubKey64 = Base64Encode((char*)StcCurvePPeer, 32);
@@ -372,7 +373,7 @@ int PeerToPeer::Update()
 					{
 						ui->ReceiveText->append(QString("Can't authenticate without static public key"));
 						if(SavePub.empty())
-							SavePub = ClntAddr + ".pub";
+							SavePub = QDir::homePath().toStdString() + string("/.CryptoChatUI/") + ClntAddr + ".pub";
 
 						memcpy(StcCurvePPeer, &SignedKey[64], 32);
 						HasStaticPub = true;

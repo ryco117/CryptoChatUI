@@ -2,6 +2,7 @@
 #define CREATEKEYSFIELD_H
 
 #include <QDialog>
+#include <QDir>
 
 namespace Ui {
 class CreateKeysField;
