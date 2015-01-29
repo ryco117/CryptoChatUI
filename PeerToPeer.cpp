@@ -305,9 +305,10 @@ int PeerToPeer::Update()
 						}
 						else
 						{
-							char* PubKey64 = Export64(StcClientMod);
+							//char* PubKey64 = Export64(StcClientMod);
+							HasStaticPub = true;
 							//cout << "Saving received peer static public key " << PubKey64 << " to " << SavePublic << endl;
-							delete[] PubKey64;
+							//delete[] PubKey64;
 
 							MakeRSAPublicKey(SavePub, StcClientMod, StcClientE);
 						}
@@ -374,9 +375,10 @@ int PeerToPeer::Update()
 							SavePub = ClntAddr + ".pub";
 
 						memcpy(StcCurvePPeer, &SignedKey[64], 32);
-						char* PubKey64 = Base64Encode((char*)StcCurvePPeer, 32);
+						HasStaticPub = true;
+						//char* PubKey64 = Base64Encode((char*)StcCurvePPeer, 32);
 						//cout << "Saving received peer static public key " << PubKey64 << " to " << SavePublic << endl;
-						delete[] PubKey64;
+						//delete[] PubKey64;
 
 						MakeCurvePublicKey(SavePub, StcCurvePPeer);
 					}
