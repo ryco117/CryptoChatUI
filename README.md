@@ -8,3 +8,6 @@ The public and private keys generated can be stored to files to be reused. The p
 with 256 bit AES using a randomly generated IV and a key derived from a password using scrypt with
 a random salt. Enjoy top-notch, uber-level secure chats (most often about security, you know it's
 true :P ).
+
+It can be built using Qt and the required libraries, or installed using either the Linux or windows installers found at
+https://www.dropbox.com/sh/wlutptljw07hb84/AAA909HQ1YG-FfpBdoDoPcIga?dl=0

@@ -45,11 +45,11 @@ FORMS    += mainwindow.ui \
 unix:!macx: LIBS += -lgmpxx
 unix:!macx: LIBS += -lgmp
 
-#unix:!macx: LIBS += -L$$PWD/../../../../../../usr/local/lib/libscrypt.a
-unix:!macx: LIBS += ./libscrypt.a
+unix:!macx: LIBS += /usr/local/lib/libscrypt.a
+#unix:!macx: LIBS += ./libscrypt.a
 
-unix:!macx: INCLUDEPATH += ./
-unix:!macx: DEPENDPATH += ./
+unix:!macx: INCLUDEPATH += /usr/local/include
+unix:!macx: DEPENDPATH += /usr/local/include
 
 QMAKE_CFLAGS_RELEASE -= -O2
 QMAKE_CFLAGS_RELEASE -= -O0
@@ -67,7 +67,7 @@ QMAKE_CXXFLAGS_RELEASE += -O0
 QMAKE_LFLAGS_RELEASE -= -Wl,-O1
 QMAKE_LFLAGS_RELEASE += -O3
 
-unix:!macx: PRE_TARGETDEPS += ./libscrypt.a
+unix:!macx: PRE_TARGETDEPS += /usr/local/lib/libscrypt.a
 
 OBJECTS += AES-NI.o
 
