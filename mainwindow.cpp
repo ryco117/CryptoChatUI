@@ -150,6 +150,7 @@ void MainWindow::CreateActions()
     connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(About()));
 	connect(ui->actionLicense, SIGNAL(triggered()), this, SLOT(License()));
 	connect(ui->actionSFMTLicense, SIGNAL(triggered()), this, SLOT(SFMTLicense()));
+	connect(ui->actionCurve_License, SIGNAL(triggered()), this, SLOT(CurveLicense()));
 	connect(ui->actionDonate, SIGNAL(triggered()), this, SLOT(Donate()));
 	connect(ui->actionOwn, SIGNAL(triggered()), this, SLOT(GetOwnStaticPub()));
 	connect(ui->actionPeer_s, SIGNAL(triggered()), this, SLOT(GetPeerStaticPub()));
@@ -549,14 +550,7 @@ void MainWindow::SFMTLicense()
 {
     msgBox = new QMessageBox(this);
 	msgBox->setWindowTitle("SFMT License");
-    msgBox->setText(tr("<head>\
-						<style type=\"text/css\">\
-						<!--\
-						.tab { margin-left: 40px; }\
-						-->\
-						</style>\
-						</head>\
-						Copyright (c) 2006,2007 Mutsuo Saito, Makoto Matsumoto and Hiroshima\
+    msgBox->setText(tr("Copyright (c) 2006,2007 Mutsuo Saito, Makoto Matsumoto and Hiroshima\
 						University.<br/>\
 						Copyright (c) 2012 Mutsuo Saito, Makoto Matsumoto, Hiroshima University\
 						and The University of Tokyo.<br/>\
@@ -564,19 +558,17 @@ void MainWindow::SFMTLicense()
 						<br/>\
 						Redistribution and use in source and binary forms, with or without\
 						modification, are permitted provided that the following conditions are\
-						met:<br/>\
-						<br/>\
-						* Redistributions of source code must retain the above copyright\
-						notice, this list of conditions and the following disclaimer.<br/>\
-						* Redistributions in binary form must reproduce the above\
+						met:\
+						<p style=\"text-indent: 50px\">* Redistributions of source code must retain the above copyright\
+						notice, this list of conditions and the following disclaimer.</p>\
+						<p style=\"text-indent: 50px\">* Redistributions in binary form must reproduce the above\
 						copyright notice, this list of conditions and the following\
 						disclaimer in the documentation and/or other materials provided\
-						with the distribution.<br/>\
-						* Neither the names of Hiroshima University, The University of\
+						with the distribution.</p>\
+						<p style=\"text-indent: 50px\">* Neither the names of Hiroshima University, The University of\
 						Tokyo nor the names of its contributors may be used to endorse\
 						or promote products derived from this software without specific\
-						prior written permission.<br/>\
-						<br/>\
+						prior written permission.</p>\
 						THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\
 						\"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\
 						LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\
@@ -595,6 +587,60 @@ void MainWindow::SFMTLicense()
     delete msgBox;
 }
 
+void MainWindow::CurveLicense()
+{
+    msgBox = new QMessageBox(this);
+	msgBox->setWindowTitle("curve25519-donna License");
+    msgBox->setText(tr("Copyright 2008, Google Inc.<br/>\
+						All rights reserved.<br/>\
+						<br/>\
+						Redistribution and use in source and binary forms, with or without\
+						modification, are permitted provided that the following conditions are\
+						met:\
+						<p style=\"text-indent: 50px\">* Redistributions of source code must retain the above copyright\
+						notice, this list of conditions and the following disclaimer.</p>\
+						<p style=\"text-indent: 50px\">* Redistributions in binary form must reproduce the above\
+						copyright notice, this list of conditions and the following disclaimer\
+						in the documentation and/or other materials provided with the\
+						distribution.</p>\
+						<p style=\"text-indent: 50px\">* Neither the name of Google Inc. nor the names of its\
+						contributors may be used to endorse or promote products derived from\
+						this software without specific prior written permission.</p>\
+						THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\
+						\"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\
+						LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\
+						A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT\
+						OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,\
+						SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT\
+						LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\
+						DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\
+						THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\
+						(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\
+						OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.<br/>\
+						<br/>\
+						curve25519-donna: Curve25519 elliptic curve, public key function<br/>\
+						<a href=\"http://code.google.com/p/curve25519-donna\">http://code.google.com/p/curve25519-donna/</a><br/>\
+						Adam Langley <agl@imperialviolet.org><br/>\
+						<br/>\
+						Derived from public domain C code by Daniel J. Bernstein <djb@cr.yp.to><br/>\
+						More information about curve25519 can be found here<br/>\
+						<a href=\"http://cr.yp.to/ecdh.html\">http://cr.yp.to/ecdh.html</a><br/>\
+						<br/>\
+						djb's sample implementation of curve25519 is written in a special assembly\
+						language called qhasm and uses the floating point registers.<br/>\
+						<br/>\
+						This is, almost, a clean room reimplementation from the curve25519 paper. It\
+						uses many of the tricks described therein. Only the crecip function is taken\
+						from the sample implementation."));
+	msgBox->setTextFormat(Qt::RichText);
+    msgBox->setIcon(QMessageBox::Information);
+    msgBox->setStandardButtons(QMessageBox::Ok);
+	QSpacerItem* horizontalSpacer = new QSpacerItem(700, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+	QGridLayout* lay = (QGridLayout*)msgBox->layout();
+	lay->addItem(horizontalSpacer, lay->rowCount(), 0, 1, lay->columnCount());
+    msgBox->exec();
+    delete msgBox;
+}
 
 void MainWindow::Donate()
 {

@@ -691,6 +691,7 @@
     <addaction name="separator"/>
     <addaction name="actionLicense"/>
     <addaction name="actionSFMTLicense"/>
+    <addaction name="actionCurve_License"/>
    </widget>
    <widget class="QMenu" name="menuAdvanced">
     <property name="title">
@@ -788,6 +789,11 @@
   <action name="actionSFMTLicense">
    <property name="text">
     <string>SFMT License</string>
+   </property>
+  </action>
+  <action name="actionCurve_License">
+   <property name="text">
+    <string>curve25519-donna License</string>
    </property>
   </action>
  </widget>

@@ -7,6 +7,8 @@
 #include <QFileDialog>
 #include <QTextEdit>
 #include <QDebug>
+#include <QGridLayout>
+#include <QSpacerItem>
 
 #ifdef WINDOWS
 	#include <winsock2.h>
@@ -75,6 +77,7 @@ private slots:
     void About();
 	void License();
 	void SFMTLicense();
+	void CurveLicense();
 	void Donate();
 	void GetOwnStaticPub();
 	void GetPeerStaticPub();

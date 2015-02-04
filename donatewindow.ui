@@ -50,9 +50,9 @@
   <widget class="QLabel" name="DonateLabel">
    <property name="geometry">
     <rect>
-     <x>30</x>
+     <x>50</x>
      <y>165</y>
-     <width>380</width>
+     <width>340</width>
      <height>50</height>
     </rect>
    </property>
@@ -60,7 +60,16 @@
     <cursorShape>IBeamCursor</cursorShape>
    </property>
    <property name="text">
-    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If you feel this propgram has any value to you, please consider&lt;br/&gt;making a donation to support the Value-For-Value model and to&lt;br/&gt;keep this project going!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If you feel this propgram has any value to you, please consider making a donation to support the Value-For-Value model and to keep this project going!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+   </property>
+   <property name="textFormat">
+    <enum>Qt::RichText</enum>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+   </property>
+   <property name="wordWrap">
+    <bool>true</bool>
    </property>
    <property name="textInteractionFlags">
     <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
@@ -101,9 +110,9 @@
   <widget class="QLabel" name="MyBTCAddr">
    <property name="geometry">
     <rect>
-     <x>90</x>
+     <x>80</x>
      <y>470</y>
-     <width>260</width>
+     <width>280</width>
      <height>16</height>
     </rect>
    </property>
@@ -118,6 +127,9 @@
    </property>
    <property name="text">
     <string>1MPxQjFmxpUd2ZGsVZf5Z4HXweJth2Ughy</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
    </property>
    <property name="textInteractionFlags">
     <set>Qt::LinksAccessibleByMouse|Qt::TextSelectableByMouse</set>
