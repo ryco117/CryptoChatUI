@@ -620,9 +620,9 @@ void MainWindow::CurveLicense()
 						<br/>\
 						curve25519-donna: Curve25519 elliptic curve, public key function<br/>\
 						<a href=\"http://code.google.com/p/curve25519-donna\">http://code.google.com/p/curve25519-donna/</a><br/>\
-						Adam Langley <agl@imperialviolet.org><br/>\
+						Adam Langley &lt;agl@imperialviolet.org&gt;<br/>\
 						<br/>\
-						Derived from public domain C code by Daniel J. Bernstein <djb@cr.yp.to><br/>\
+						Derived from public domain C code by Daniel J. Bernstein &lt;djb@cr.yp.to&gt;<br/>\
 						More information about curve25519 can be found here<br/>\
 						<a href=\"http://cr.yp.to/ecdh.html\">http://cr.yp.to/ecdh.html</a><br/>\
 						<br/>\
