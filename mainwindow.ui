@@ -667,7 +667,7 @@
      <x>0</x>
      <y>0</y>
      <width>500</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuCrypto_Chat">
@@ -687,8 +687,10 @@
     <addaction name="actionHelp"/>
     <addaction name="separator"/>
     <addaction name="actionAbout"/>
-    <addaction name="actionLicense"/>
     <addaction name="actionDonate"/>
+    <addaction name="separator"/>
+    <addaction name="actionLicense"/>
+    <addaction name="actionSFMTLicense"/>
    </widget>
    <widget class="QMenu" name="menuAdvanced">
     <property name="title">
@@ -781,6 +783,11 @@
   <action name="actionPeer_s">
    <property name="text">
     <string>Peer's</string>
+   </property>
+  </action>
+  <action name="actionSFMTLicense">
+   <property name="text">
+    <string>SFMT License</string>
    </property>
   </action>
  </widget>
