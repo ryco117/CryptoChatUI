@@ -9,8 +9,10 @@ CreateKeysField::CreateKeysField(QString* pubLoc, QString* privLoc, char* passwd
 	PubLoc = pubLoc;
 	*PubLoc = QDir::homePath() + QString("/.CryptoChatUI/MyKeys.pub");
 	PrivLoc = privLoc;
-	*PrivLoc =  QDir::homePath() + QString("/.CryptoChatUI/MyKeys.priv");
+	*PrivLoc = QDir::homePath() + QString("/.CryptoChatUI/MyKeys.priv");
 	ui->setupUi(this);
+	ui->PublicLocField->setText(*PubLoc);
+	ui->PrivateLocField->setText(*PrivLoc);
 }
 
 void CreateKeysField::on_PublicLocField_textEdited(const QString &arg1)
