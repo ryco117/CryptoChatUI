@@ -75,7 +75,6 @@ private slots:
 	void on_ProxyAddrLine_textEdited(const QString &arg1);
     void About();
 	void License();
-	void SFMTLicense();
 	void CurveLicense();
 	void Donate();
 	void GetOwnStaticPub();
