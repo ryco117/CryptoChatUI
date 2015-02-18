@@ -42,7 +42,7 @@ MainWindow::MainWindow(QWidget *parent) :QMainWindow(parent), ui(new Ui::MainWin
     MyPTP.ui = ui;
     MyPTP.parent = this;
 	MyPTP.RNG = rng;
-	MyPTP.sfmt = &sfmt;
+	MyPTP.fprng = &fprng;
     MyPTP.Serv = 0;
     MyPTP.Client = 0;
     MyPTP.PeerPort = 5001;
@@ -149,7 +149,6 @@ void MainWindow::CreateActions()
     connect(ui->actionHelp, SIGNAL(triggered()), this, SLOT(Help()));
     connect(ui->actionAbout, SIGNAL(triggered()), this, SLOT(About()));
 	connect(ui->actionLicense, SIGNAL(triggered()), this, SLOT(License()));
-	connect(ui->actionSFMTLicense, SIGNAL(triggered()), this, SLOT(SFMTLicense()));
 	connect(ui->actionCurve_License, SIGNAL(triggered()), this, SLOT(CurveLicense()));
 	connect(ui->actionDonate, SIGNAL(triggered()), this, SLOT(Donate()));
 	connect(ui->actionOwn, SIGNAL(triggered()), this, SLOT(GetOwnStaticPub()));
@@ -168,6 +167,8 @@ void MainWindow::SeedAll()
 		if(random == NULL)
 		{
 			fprintf(stderr, "Cannot open /dev/urandom!\n");
+			delete[] seed;
+			return;
 		}
 		for(int i = 0; i < 20; i++)
 		{
@@ -177,7 +178,7 @@ void MainWindow::SeedAll()
 		}
 		fclose(random);
 	#endif
-	sfmt_init_by_array(&sfmt, seed, 20);
+	fprng.Seed((unsigned char*)seed, sizeof(uint32_t) * 20);
 	memset(seed, 0, sizeof(uint32_t) * 20);
 	delete[] seed;
 }
@@ -329,15 +330,15 @@ void MainWindow::on_CreateKeysButton_clicked()
 			if(MyPTP.UseRSA)
 				NewRSA.KeyGenerator(MyPTP.StcMyD, MyPTP.StcMyE, MyPTP.StcMyMod, *rng);
 			else
-				ECC_Curve25519_Create(MyPTP.StcCurveP, MyPTP.StcCurveK, sfmt);
+				ECC_Curve25519_Create(MyPTP.StcCurveP, MyPTP.StcCurveK, fprng);
 		}
 
         const char* Passwd = ui->MyPrivatePassLine->text().toStdString().c_str();
 
 		char* SaltStr = new char[16];
-		sfmt_fill_small_array64(&sfmt, (uint64_t*)SaltStr, 2);
+		fprng.GenerateBlocks(SaltStr, 1);
 		uint8_t* TempIV = new uint8_t[16];
-		sfmt_fill_small_array64(&sfmt, (uint64_t*)TempIV, 2);
+		fprng.GenerateBlocks(TempIV, 1);
 
 		if(MyPTP.UseRSA)
 		{
@@ -504,15 +505,16 @@ void MainWindow::About()
 	msgBox->setWindowTitle("About");
     msgBox->setText(tr("This is a GUI version of the original CryptoChat.\
 					   It was built to maintain complete compatability \
-					   between the two versions and so, has the same \
+					   between the two versions and so, has the same main \
 					   capabilities and functionality.<br/><br/>\
-					   A secure, chat program that uses ECC Curve25519 or 4096 bit RSA keys to exchange a \
-					   256 bit AES key, which is used for the rest of the chat. It uses GMP for it's large number arithmetic. \
-					   The public and private keys generated can be stored to files to be reused. The private key may be encrypted\
-					   with 256 bit AES using a randomly generated IV and a key derived from a password using scrypt with a \
-					   random salt. It is the successor to the original CryptoChat and maintains complete compatibility with it, \
-					   but with a nice Qt based graphical interface. Enjoy top-notch, uber-level secure chats (most often about \
-					   security, you know it's true :P ).<br/><br/>\
+					   A secure, terminal based chat program that uses Curve25519 or 4096 bit RSA keys to exchange a\
+					   256 bit AES key, which is used for the rest of the chat. AES is done through the Intel AES-NI instructions if they are available (using the code from my AES-Asm project), else, my C++ wrapper.\
+					   GMP is used for large number arithmetic regarding RSA encryption only.\
+					   The public and private keys generated are automatically stored to files to be reused. The private key may be encrypted\
+					   with 256 bit AES using a randomly generated IV and a key derived from a password using libscrypt with\
+					   a random salt. Random numbers (other than ones concerning RSA) are generated using my Fortuna implementation. More information on that can be found at that project's page.\
+					   Enjoy top-notch, uber-level secure chats (most often about security, you know it's\
+					   true :P ).<br/><br/>\
 					   \tDeveloped by ryco117"));
 	msgBox->setTextFormat(Qt::RichText);
     msgBox->setIcon(QMessageBox::Information);
@@ -539,47 +541,6 @@ void MainWindow::License()
 <br/>\
 				       You should have received a copy of the GNU General Public License<br/>\
 				       along with this program.  If not, see <a href=\"http://www.gnu.org/licenses/\">&lt;http://www.gnu.org/licenses/&gt;</a>."));
-	msgBox->setTextFormat(Qt::RichText);
-    msgBox->setIcon(QMessageBox::Information);
-    msgBox->setStandardButtons(QMessageBox::Ok);
-    msgBox->exec();
-    delete msgBox;
-}
-
-void MainWindow::SFMTLicense()
-{
-    msgBox = new QMessageBox(this);
-	msgBox->setWindowTitle("SFMT License");
-    msgBox->setText(tr("Copyright (c) 2006,2007 Mutsuo Saito, Makoto Matsumoto and Hiroshima\
-						University.<br/>\
-						Copyright (c) 2012 Mutsuo Saito, Makoto Matsumoto, Hiroshima University\
-						and The University of Tokyo.<br/>\
-						All rights reserved.<br/>\
-						<br/>\
-						Redistribution and use in source and binary forms, with or without\
-						modification, are permitted provided that the following conditions are\
-						met:\
-						<p style=\"text-indent: 50px\">* Redistributions of source code must retain the above copyright\
-						notice, this list of conditions and the following disclaimer.</p>\
-						<p style=\"text-indent: 50px\">* Redistributions in binary form must reproduce the above\
-						copyright notice, this list of conditions and the following\
-						disclaimer in the documentation and/or other materials provided\
-						with the distribution.</p>\
-						<p style=\"text-indent: 50px\">* Neither the names of Hiroshima University, The University of\
-						Tokyo nor the names of its contributors may be used to endorse\
-						or promote products derived from this software without specific\
-						prior written permission.</p>\
-						THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS\
-						\"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT\
-						LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR\
-						A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT\
-						OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,\
-						SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT\
-						LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,\
-						DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY\
-						THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\
-						(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\
-						OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."));
 	msgBox->setTextFormat(Qt::RichText);
     msgBox->setIcon(QMessageBox::Information);
     msgBox->setStandardButtons(QMessageBox::Ok);
@@ -847,13 +808,13 @@ void MainWindow::on_GenerateButton_clicked()
 	}
 	else
 	{
-		ECC_Curve25519_Create(MyPTP.StcCurveP, MyPTP.StcCurveK, sfmt);
+		ECC_Curve25519_Create(MyPTP.StcCurveP, MyPTP.StcCurveK, fprng);
 	}
 
 	char* SaltStr = new char[16];
-	sfmt_fill_small_array64(&sfmt, (uint64_t*)SaltStr, 2);
+	fprng.GenerateBlocks(SaltStr, 1);
 	uint8_t* TempIV = new uint8_t[16];
-	sfmt_fill_small_array64(&sfmt, (uint64_t*)TempIV, 2);
+	fprng.GenerateBlocks(TempIV, 1);
 
 	if(MyPTP.UseRSA)
 	{
@@ -920,7 +881,7 @@ void MainWindow::StartConnection()
 		}
 
 		//Fill all the One-Use encryption values
-		sfmt_fill_small_array64(&sfmt, (uint64_t*)MyPTP.SymKey, 4);			//Create a 256 bit long random value as our sym key
+		fprng.GenerateBlocks(MyPTP.SymKey, 2);			//Create a 256 bit long random value as our sym key
 		char* StcPubKey64;
 		if(MyPTP.UseRSA)
 		{
@@ -929,7 +890,7 @@ void MainWindow::StartConnection()
 		}
 		else
 		{
-			ECC_Curve25519_Create(MyPTP.EphCurveP, MyPTP.EphCurveK, sfmt);
+			ECC_Curve25519_Create(MyPTP.EphCurveP, MyPTP.EphCurveK, fprng);
 			StcPubKey64 = Base64Encode((char*)MyPTP.StcCurveP, 32);
 		}
 

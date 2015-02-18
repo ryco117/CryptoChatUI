@@ -12,8 +12,8 @@ TARGET = CryptoChatUI
 TEMPLATE = app
 win32: DEFINES += WINDOWS
 
-SOURCES += main.cpp\
-    SFMT/SFMT.c\
+SOURCES += main.cpp \
+	fortuna.cpp \
     mainwindow.cpp \
     AES.cpp \
     PeerIO.cpp \
@@ -33,9 +33,9 @@ HEADERS  += mainwindow.h \
     base64.h \
     ecdh.h \
     donatewindow.h \
-    SFMT/SFMT.h \
     createkeysfield.h \
-    getpasswordwidget.h
+    getpasswordwidget.h \
+    fortuna.h
 
 FORMS    += mainwindow.ui \
     donatewindow.ui \
@@ -63,6 +63,7 @@ QMAKE_CXXFLAGS += -Wno-narrowing
 QMAKE_CXXFLAGS += -Wno-maybe-uninitialized
 QMAKE_CXXFLAGS_RELEASE -= -O2
 QMAKE_CXXFLAGS_RELEASE += -O0
+QMAKE_CXXFLAGS += -fpermissive
 
 QMAKE_LFLAGS_RELEASE -= -Wl,-O1
 QMAKE_LFLAGS_RELEASE += -O3

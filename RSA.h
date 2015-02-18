@@ -1,13 +1,6 @@
 #ifndef MYRSA
 #define MYRSA
 
-#include <cmath>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <fstream>
-#include <time.h>
-#include <stdlib.h>
 #include <gmpxx.h>
 
 using namespace std;

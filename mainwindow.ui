@@ -690,7 +690,6 @@
     <addaction name="actionDonate"/>
     <addaction name="separator"/>
     <addaction name="actionLicense"/>
-    <addaction name="actionSFMTLicense"/>
     <addaction name="actionCurve_License"/>
    </widget>
    <widget class="QMenu" name="menuAdvanced">
@@ -784,11 +783,6 @@
   <action name="actionPeer_s">
    <property name="text">
     <string>Peer's</string>
-   </property>
-  </action>
-  <action name="actionSFMTLicense">
-   <property name="text">
-    <string>SFMT License</string>
    </property>
   </action>
   <action name="actionCurve_License">

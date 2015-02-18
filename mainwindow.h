@@ -23,8 +23,7 @@
 #include <iostream>
 #include <string>
 
-#define SFMT_MEXP 19937
-
+#include "fortuna.h"
 #include "getpasswordwidget.h"
 #include "createkeysfield.h"
 #include "donatewindow.h"
@@ -49,7 +48,7 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     void SeedAll();
 	gmp_randclass* rng;
-	sfmt_t sfmt;
+	FortunaPRNG fprng;
     PeerToPeer MyPTP;
     RSA NewRSA;
     AES Cipher;
